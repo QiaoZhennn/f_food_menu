@@ -1,0 +1,13 @@
+{
+  "projects": {
+    "default": "f-food-menu"
+  },
+  "targets": {
+    "f-food-menu": {
+      "hosting": {
+        "app": ["f-food-menu"],
+        "api": ["f-food-menu-api"]
+      }
+    }
+  }
+} 
