@@ -1,4 +1,4 @@
-import * as dotenv from 'dotenv';
+import * as dotenv from "dotenv";
 dotenv.config();
 /**
  * Import function triggers from their respective submodules:
@@ -17,9 +17,9 @@ import type {Request, Response} from "express";
 import cors from "cors";
 import {OpenAI} from "openai";
 
-const openaiKey:string = process.env.NODE_ENV === "development" 
-  ? process.env.OPENAI_KEY! 
-  : defineSecret("OPENAI_KEY").value()!;
+const openaiKey:string = process.env.NODE_ENV === "development" ?
+  process.env.OPENAI_KEY! :
+  defineSecret("OPENAI_KEY").value()!;
 
 const app = express();
 app.use(cors());
@@ -56,7 +56,7 @@ app.post("/testpost", async (req: Request, res: Response) => {
 
 app.post("/generate-image", async (req: Request, res: Response) => {
   try {
-    const openai = new OpenAI({ apiKey: openaiKey });
+    const openai = new OpenAI({apiKey: openaiKey});
     const {prompt} = req.body;
     const response = await openai.images.generate({
       model: "dall-e-3",
@@ -73,7 +73,7 @@ app.post("/generate-image", async (req: Request, res: Response) => {
 
 app.post("/extract-menu", async (req: Request, res: Response) => {
   try {
-    const openai = new OpenAI({ apiKey: openaiKey });
+    const openai = new OpenAI({apiKey: openaiKey});
     const {imageBase64} = req.body;
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
