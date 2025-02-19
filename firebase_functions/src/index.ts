@@ -1,3 +1,5 @@
+import * as dotenv from 'dotenv';
+dotenv.config();
 /**
  * Import function triggers from their respective submodules:
  *
@@ -15,19 +17,46 @@ import type {Request, Response} from "express";
 import cors from "cors";
 import {OpenAI} from "openai";
 
-const openaiKey = defineSecret("OPENAI_KEY");
+const openaiKey:string = process.env.NODE_ENV === "development" 
+  ? process.env.OPENAI_KEY! 
+  : defineSecret("OPENAI_KEY").value()!;
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
 // const openaiRouter = express.Router();
+app.get("/testget", async (req: Request, res: Response) => {
+  try {
+    console.log("openaiKey", openaiKey);
+    res.json({
+      status: "success",
+      message: "GET endpoint is working!",
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    logger.error("Error in test GET endpoint:", error);
+    res.status(500).json({error: "Internal server error"});
+  }
+});
+
+app.post("/testpost", async (req: Request, res: Response) => {
+  try {
+    res.json({
+      status: "success",
+      message: "POST endpoint is working!",
+      receivedBody: req.body || {},
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    logger.error("Error in test POST endpoint:", error);
+    res.status(500).json({error: "Internal server error"});
+  }
+});
 
 app.post("/generate-image", async (req: Request, res: Response) => {
   try {
-    const openai = new OpenAI({
-      apiKey: openaiKey.value(),
-    });
+    const openai = new OpenAI({ apiKey: openaiKey });
     const {prompt} = req.body;
     const response = await openai.images.generate({
       model: "dall-e-3",
@@ -44,9 +73,7 @@ app.post("/generate-image", async (req: Request, res: Response) => {
 
 app.post("/extract-menu", async (req: Request, res: Response) => {
   try {
-    const openai = new OpenAI({
-      apiKey: openaiKey.value(),
-    });
+    const openai = new OpenAI({ apiKey: openaiKey });
     const {imageBase64} = req.body;
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
@@ -102,6 +129,7 @@ app.post("/extract-menu", async (req: Request, res: Response) => {
     logger.info("response", temp);
     res.json({menuItems: JSON.parse(temp || "[]")});
   } catch (error) {
+    console.log("error", error);
     logger.error("Error extracting menu:", error);
     res.status(500).json({error: "Failed to extract menu items"});
   }
@@ -111,5 +139,12 @@ app.post("/extract-menu", async (req: Request, res: Response) => {
 // app.listen(3000, () => {
 //   logger.info("Server is running on port 3000");
 // });
+// For local development
+if (process.env.NODE_ENV === "development") {
+  const PORT = 3000;
+  app.listen(PORT, () => {
+    logger.info(`Server is running on http://localhost:${PORT}`);
+  });
+}
 
 export const api = onRequest({secrets: [openaiKey]}, app);

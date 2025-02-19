@@ -38,10 +38,9 @@ class _ExtractedMenuPageState extends State<ExtractedMenuPage> {
     try {
       final prompt = _constructPrompt(item);
       final response = await http.post(
-        Uri.parse(apiBaseUrl),
+        Uri.parse(apiBaseUrl + '/generate-image'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
-          'path': '/generate-image',
           'prompt': prompt,
         }),
       );

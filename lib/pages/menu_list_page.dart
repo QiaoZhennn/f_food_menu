@@ -68,10 +68,9 @@ class _MenuListPageState extends State<MenuListPage> {
       final imageBase64 = await _getImageBase64(_selectedImagePath!);
 
       final response = await http.post(
-        Uri.parse(apiBaseUrl),
+        Uri.parse(apiBaseUrl + '/extract-menu'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
-          'path': '/extract-menu',
           'imageBase64': imageBase64,
         }),
       );

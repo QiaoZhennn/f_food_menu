@@ -30,7 +30,6 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  google_mlkit_text_recognition: ^0.10.0
   image_picker: ^1.0.4
   cupertino_icons: ^1.0.2
   path_provider: ^2.1.1
@@ -98,7 +97,6 @@ flutter:
 
   assets:
     - assets/image/
-    - .env
 
 # App icon configuration
 flutter_icons:
