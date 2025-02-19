@@ -5,9 +5,13 @@
   "targets": {
     "f-food-menu": {
       "hosting": {
-        "app": ["f-food-menu"],
-        "api": ["f-food-menu-api"]
+        "app": [
+          "f-food-menu"
+        ],
+        "api": [
+          "f-food-menu-api"
+        ]
       }
     }
   }
-} 
+}

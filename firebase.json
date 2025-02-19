@@ -14,25 +14,22 @@
           "destination": "/index.html"
         }
       ]
-    },
-    {
-      "target": "api",
-      "public": "backend/public",
-      "ignore": [
-        "firebase.json",
-        "**/.*",
-        "**/node_modules/**"
-      ],
-      "rewrites": [
-        {
-          "source": "**",
-          "function": "api"
-        }
-      ]
     }
   ],
-  "functions": {
-    "source": "backend",
-    "runtime": "nodejs18"
-  }
+  "functions": [
+    {
+      "source": "firebase_functions",
+      "codebase": "default",
+      "ignore": [
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log",
+        "**/node_modules/**"
+      ],
+      "predeploy": [
+        "npm --prefix \"$RESOURCE_DIR\" run lint",
+        "npm --prefix \"$RESOURCE_DIR\" run build"
+      ]
+    }
+  ]
 }
