@@ -26,6 +26,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="apple-mobile-web-app-title" content="Food Menu">
   <meta name="camera" content="use">
+  <meta name="google-signin-client_id" content="1086117261799-m24lhn8n7fenvhvd5e5klk092h84v70t.apps.googleusercontent.com">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
@@ -43,6 +44,10 @@
     media-src * 'self' blob: data: gap:;
     connect-src self * 'unsafe-inline' blob: data: gap:;
     frame-src * self blob: data: gap:;">
+
+  <!-- Add these scripts before your Flutter app script -->
+  <script src="https://www.gstatic.com/firebasejs/9.x.x/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.x.x/firebase-auth.js"></script>
 </head>
 <body>
   <script src="flutter_bootstrap.js" async></script>

@@ -3,6 +3,8 @@ import '../models/food_item.dart';
 import 'menu_list_page.dart';
 import 'extracted_menu_page.dart';
 import 'generated_image_page.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'auth_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -16,6 +18,30 @@ class _HomePageState extends State<HomePage> {
   List<FoodItem>? _extractedItems;
   String? _generatedImageUrl;
   String? _generatedPrompt;
+  bool _isSignedIn = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkSignInStatus();
+  }
+
+  Future<void> _checkSignInStatus() async {
+    final prefs = await SharedPreferences.getInstance();
+    final isSignedIn = prefs.getBool('isSignedIn') ?? false;
+
+    if (mounted) {
+      setState(() {
+        _isSignedIn = isSignedIn;
+      });
+    }
+  }
+
+  void _onSignedIn() {
+    setState(() {
+      _isSignedIn = true;
+    });
+  }
 
   void onMenuExtracted(List<FoodItem> items) {
     setState(() {
@@ -34,6 +60,10 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    if (!_isSignedIn) {
+      return AuthPage(onSignedIn: _onSignedIn);
+    }
+
     return Scaffold(
       body: IndexedStack(
         index: _selectedIndex,

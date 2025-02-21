@@ -50,7 +50,7 @@ app.*.map.json
 firebase_functions/**/node_modules
 firebase_functions/.runtimeconfig.json
 firebase_functions/.keys.json
-**/google-services.json
+android/app/google-services.json
 **/google-services.json.jks
 **/GoogleService-Info.plist
 .vscode/

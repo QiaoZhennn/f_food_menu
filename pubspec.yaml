@@ -40,6 +40,8 @@ dependencies:
   firebase_storage: ^12.4.2  # If you need Storage
   js: ^0.6.7
   image: ^4.1.3
+  google_sign_in: ^6.1.6
+  shared_preferences: ^2.2.2
 
 dev_dependencies:
   flutter_test:
@@ -98,6 +100,7 @@ flutter:
 
   assets:
     - assets/image/
+    - assets/icon/
 
 # App icon configuration
 flutter_icons:
