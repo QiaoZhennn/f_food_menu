@@ -1,19 +1,22 @@
 class FoodItem {
   final String name;
   final List<String> ingredients;
-  final double price;
+  final String drinkFlavor;
+  final double? price;
 
   FoodItem({
     required this.name,
     required this.ingredients,
-    required this.price,
+    this.drinkFlavor = '',
+    this.price,
   });
 
   factory FoodItem.fromJson(Map<String, dynamic> json) {
     return FoodItem(
-      name: json['name'],
+      name: json['name'] as String,
       ingredients: (json['ingredients'] as List?)?.cast<String>() ?? [],
-      price: json['price'].toDouble(),
+      drinkFlavor: json['drinkFlavor'] as String? ?? '',
+      price: (json['price'] as num?)?.toDouble(),
     );
   }
 }

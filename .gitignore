@@ -54,3 +54,4 @@ firebase_functions/.keys.json
 **/google-services.json.jks
 **/GoogleService-Info.plist
 .vscode/
+**/service_account.json

@@ -23,12 +23,6 @@ class _ExtractedMenuPageState extends State<ExtractedMenuPage> {
   bool _isGeneratingImage = false;
   String? _processingItemName;
 
-  String _constructPrompt(FoodItem item) {
-    final ingredientsText =
-        item.ingredients.isNotEmpty ? ', ${item.ingredients.join(", ")}' : '';
-    return 'Generate a realistic food image: ${item.name}$ingredientsText';
-  }
-
   Future<void> _generateImageForFood(FoodItem item) async {
     setState(() {
       _isGeneratingImage = true;
@@ -36,20 +30,20 @@ class _ExtractedMenuPageState extends State<ExtractedMenuPage> {
     });
 
     try {
-      final prompt = _constructPrompt(item);
       final response = await http.post(
-        Uri.parse(apiBaseUrl + '/generate-image'),
+        Uri.parse(generateImageUrl),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
-          'prompt': prompt,
+          'name': item.name,
+          'ingredients': item.ingredients,
+          'drinkFlavor': item.drinkFlavor,
         }),
       );
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (!mounted) return;
-
-        widget.onImageGenerated(data['imageUrl'], prompt);
+        widget.onImageGenerated(data['imageUrl'], data['prompt']);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Failed to generate image')),
@@ -81,16 +75,28 @@ class _ExtractedMenuPageState extends State<ExtractedMenuPage> {
 
           return ListTile(
             title: Text(item.name),
-            subtitle: item.ingredients.isNotEmpty
-                ? Text('Ingredients: ${item.ingredients.join(", ")}')
-                : null,
-            trailing: isProcessing
-                ? const SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : Text('\$${item.price.toStringAsFixed(2)}'),
+            subtitle: item.drinkFlavor.isNotEmpty
+                ? Text(item.drinkFlavor)
+                : item.ingredients.isNotEmpty
+                    ? Text(item.ingredients.join(', '))
+                    : null,
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (item.price != null)
+                  Text('\$${item.price!.toStringAsFixed(2)}'),
+                if (isProcessing) ...[
+                  const SizedBox(width: 8),
+                  const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                    ),
+                  ),
+                ],
+              ],
+            ),
             onTap: (_isGeneratingImage && !isProcessing)
                 ? null
                 : () => _generateImageForFood(item),

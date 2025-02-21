@@ -18,19 +18,31 @@
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <meta name="description" content="A Flutter OCR application">
+  <meta name="theme-color" content="#ffffff">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="food_menu">
-  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+  <meta name="apple-mobile-web-app-title" content="Food Menu">
+  <meta name="camera" content="use">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>food_menu</title>
+  <title>Food Menu</title>
   <link rel="manifest" href="manifest.json">
+
+  <!-- Update CSP to allow camera access -->
+  <meta http-equiv="Content-Security-Policy" 
+    content="default-src * self blob: data: gap:; 
+    style-src * self 'unsafe-inline' blob: data: gap:;
+    script-src * 'self' 'unsafe-eval' 'unsafe-inline' blob: data: gap:; 
+    object-src * 'self' blob: data: gap:; 
+    img-src * self 'unsafe-inline' blob: data: gap:;
+    media-src * 'self' blob: data: gap:;
+    connect-src self * 'unsafe-inline' blob: data: gap:;
+    frame-src * self blob: data: gap:;">
 </head>
 <body>
   <script src="flutter_bootstrap.js" async></script>
