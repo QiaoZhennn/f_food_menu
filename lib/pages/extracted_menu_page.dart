@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
+// import 'package:http/http.dart' as http;
+// import 'dart:convert';
 import '../models/food_item.dart';
-import '../constants.dart';
+// import '../constants.dart';
+import '../services/image_search_service.dart';
 // import 'generated_image_page.dart';
 
 class ExtractedMenuPage extends StatefulWidget {
   final List<FoodItem> foodItems;
-  final Function(String imageUrl, String prompt) onImageGenerated;
+  final Function(String imageUrl, String prompt, FoodItem item)
+      onImageGenerated;
 
   const ExtractedMenuPage({
     super.key,
@@ -22,40 +24,67 @@ class ExtractedMenuPage extends StatefulWidget {
 class _ExtractedMenuPageState extends State<ExtractedMenuPage> {
   bool _isGeneratingImage = false;
   String? _processingItemName;
+  // List<String> _searchImageUrls = [];
 
-  Future<void> _generateImageForFood(FoodItem item) async {
+  // Future<void> _generateImageForFood(FoodItem item) async {
+  //   setState(() {
+  //     _isGeneratingImage = true;
+  //     _processingItemName = item.name;
+  //   });
+
+  //   try {
+  //     // Search for images while waiting for generation
+  //     final searchQuery = item.drinkFlavor.isNotEmpty
+  //         ? 'drink image of ${item.name}'
+  //         : 'food image of ${item.name}';
+  //     _searchImageUrls = await ImageSearchService.searchImages(searchQuery);
+
+  //     final response = await http.post(
+  //       Uri.parse(generateImageUrl),
+  //       headers: {'Content-Type': 'application/json'},
+  //       body: json.encode({
+  //         'name': item.name,
+  //         'ingredients': item.ingredients,
+  //         'drinkFlavor': item.drinkFlavor,
+  //       }),
+  //     );
+
+  //     if (response.statusCode == 200) {
+  //       final data = json.decode(response.body);
+  //       if (!mounted) return;
+  //       widget.onImageGenerated(data['imageUrl'], data['prompt'], item);
+  //     } else {
+  //       ScaffoldMessenger.of(context).showSnackBar(
+  //         const SnackBar(content: Text('Failed to generate image')),
+  //       );
+  //     }
+  //   } catch (e) {
+  //     ScaffoldMessenger.of(context).showSnackBar(
+  //       SnackBar(content: Text('Error: $e')),
+  //     );
+  //   } finally {
+  //     setState(() {
+  //       _isGeneratingImage = false;
+  //       _processingItemName = null;
+  //     });
+  //   }
+  // }
+
+  Future<void> _handleItemTap(FoodItem item) async {
     setState(() {
-      _isGeneratingImage = true;
       _processingItemName = item.name;
     });
 
     try {
-      final response = await http.post(
-        Uri.parse(generateImageUrl),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          'name': item.name,
-          'ingredients': item.ingredients,
-          'drinkFlavor': item.drinkFlavor,
-        }),
-      );
+      final searchQuery = item.drinkFlavor.isNotEmpty
+          ? 'drink image of ${item.name}'
+          : 'food image of ${item.name}';
+      await ImageSearchService.searchImages(searchQuery);
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (!mounted) return;
-        widget.onImageGenerated(data['imageUrl'], data['prompt']);
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to generate image')),
-        );
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
+      if (!mounted) return;
+      widget.onImageGenerated('', '', item);
     } finally {
       setState(() {
-        _isGeneratingImage = false;
         _processingItemName = null;
       });
     }
@@ -99,7 +128,7 @@ class _ExtractedMenuPageState extends State<ExtractedMenuPage> {
             ),
             onTap: (_isGeneratingImage && !isProcessing)
                 ? null
-                : () => _generateImageForFood(item),
+                : () => _handleItemTap(item),
           );
         },
       ),

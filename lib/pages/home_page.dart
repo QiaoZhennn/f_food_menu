@@ -16,9 +16,8 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   int _selectedIndex = 0;
   List<FoodItem>? _extractedItems;
-  String? _generatedImageUrl;
-  String? _generatedPrompt;
   bool _isSignedIn = false;
+  FoodItem? _selectedFoodItem;
 
   @override
   void initState() {
@@ -50,11 +49,25 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  void onImageGenerated(String imageUrl, String prompt) {
+  void onImageGenerated(String imageUrl, String prompt, FoodItem foodItem) {
     setState(() {
-      _generatedImageUrl = imageUrl;
-      _generatedPrompt = prompt;
-      _selectedIndex = 2; // Switch to generated image tab
+      _selectedFoodItem = foodItem;
+      _selectedIndex = 2;
+    });
+  }
+
+  void _onTabChanged(int index) {
+    if (index == 1) {
+      setState(() {
+        _selectedFoodItem = null;
+      });
+    }
+
+    if (index == 1 && _extractedItems == null) return;
+    if (index == 2 && _selectedFoodItem == null) return;
+
+    setState(() {
+      _selectedIndex = index;
     });
   }
 
@@ -76,25 +89,20 @@ class _HomePageState extends State<HomePage> {
             )
           else
             const Center(child: Text('No menu items extracted yet')),
-          if (_generatedImageUrl != null && _generatedPrompt != null)
+          if (_selectedFoodItem != null)
             GeneratedImagePage(
-              imageUrl: _generatedImageUrl!,
-              prompt: _generatedPrompt!,
+              foodItem: _selectedFoodItem,
             )
           else
-            const Center(child: Text('No image generated yet')),
+            const Center(child: Text('No food item selected')),
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
-        onTap: (index) {
-          // Only allow navigation if data is available
-          if (index == 1 && _extractedItems == null) return;
-          if (index == 2 && _generatedImageUrl == null) return;
-          setState(() {
-            _selectedIndex = index;
-          });
-        },
+        type: BottomNavigationBarType.fixed,
+        selectedItemColor: Colors.blue,
+        unselectedItemColor: Colors.grey,
+        onTap: _onTabChanged,
         items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.image),

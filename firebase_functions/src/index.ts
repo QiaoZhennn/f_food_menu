@@ -35,6 +35,8 @@ app.use(express.json({limit: "50mb"}));
 app.use(express.urlencoded({limit: "50mb", extended: true}));
 
 const openaiSecret = defineSecret("OPENAI_KEY");
+const googleSearchApiKey = defineSecret("GOOGLE_SEARCH_API_KEY");
+const googleSearchEngineId = defineSecret("GOOGLE_SEARCH_ENGINE_ID");
 
 // Test endpoints
 export const testGet = onRequest(
@@ -232,6 +234,48 @@ export const extractMenu = onRequest(
     } catch (error) {
       logger.error("Error extracting menu:", error);
       res.status(500).json({error: "Failed to extract menu items"});
+    }
+  }
+);
+
+export const searchImages = onRequest(
+  {
+    secrets: [googleSearchApiKey, googleSearchEngineId],
+    cors: true,
+  },
+  async (req: Request, res: Response) => {
+    try {
+      const {query} = req.body;
+      if (!query) {
+        res.status(400).json({error: "Query is required"});
+        return;
+      }
+
+      const response = await axios.get(
+        "https://www.googleapis.com/customsearch/v1",
+        {
+          params: {
+            key: googleSearchApiKey.value(),
+            cx: googleSearchEngineId.value(),
+            q: query,
+            searchType: "image",
+            num: 5,
+            imgSize: "LARGE",
+          },
+        }
+      );
+
+      if (response.data.items) {
+        const thumbnails = response.data.items.map(
+          (item: any) => item.image.thumbnailLink
+        );
+        res.json({thumbnails});
+      } else {
+        res.json({thumbnails: []});
+      }
+    } catch (error) {
+      logger.error("Error searching images:", error);
+      res.status(500).json({error: "Failed to search images"});
     }
   }
 );

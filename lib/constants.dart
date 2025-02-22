@@ -13,3 +13,10 @@ const String extractMenuUrl = String.fromEnvironment(
       ? 'https://extractmenu-suwaxy27ya-uc.a.run.app'
       : 'http://127.0.0.1:5001/f-food-menu/us-central1/extractMenu',
 );
+
+const String searchImagesUrl = String.fromEnvironment(
+  'SEARCH_IMAGES_URL',
+  defaultValue: kReleaseMode
+      ? 'https://searchimages-suwaxy27ya-uc.a.run.app'
+      : 'http://127.0.0.1:5001/f-food-menu/us-central1/searchImages',
+);
