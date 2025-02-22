@@ -7,6 +7,9 @@ import '../constants.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:image/image.dart' as img;
 import 'dart:math' as math;
+import 'dart:io';
+import '../theme/app_theme.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 // import 'extracted_menu_page.dart';
 
 class MenuListPage extends StatefulWidget {
@@ -26,6 +29,9 @@ class _MenuListPageState extends State<MenuListPage> {
   List<String> _imageFiles = [];
   bool _isExtractingMenu = false;
   final ImagePicker _picker = ImagePicker();
+  XFile? _takenPhoto;
+  Uint8List? _webImage;
+  bool _isTakenPhotoSelected = false;
 
   @override
   void initState() {
@@ -84,10 +90,38 @@ class _MenuListPageState extends State<MenuListPage> {
     return _resizeImage(bytes);
   }
 
-  Future<void> _extractMenu() async {
-    if (_selectedImagePath == null) {
+  Future<void> _takePhoto() async {
+    try {
+      final XFile? photo = await _picker.pickImage(source: ImageSource.camera);
+      if (photo != null) {
+        if (kIsWeb) {
+          final bytes = await photo.readAsBytes();
+          setState(() {
+            _webImage = bytes;
+            _takenPhoto = photo;
+            _selectedImagePath = null;
+            _isTakenPhotoSelected = true;
+          });
+        } else {
+          setState(() {
+            _takenPhoto = photo;
+            _selectedImagePath = null;
+            _isTakenPhotoSelected = true;
+          });
+        }
+      }
+    } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select an image first')),
+        SnackBar(content: Text('Error taking photo: $e')),
+      );
+    }
+  }
+
+  Future<void> _extractMenu() async {
+    if (!_isTakenPhotoSelected && _selectedImagePath == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Please select an image or take a photo first')),
       );
       return;
     }
@@ -97,7 +131,13 @@ class _MenuListPageState extends State<MenuListPage> {
     });
 
     try {
-      final imageBase64 = await _getImageBase64(_selectedImagePath!);
+      String imageBase64;
+      if (_isTakenPhotoSelected && _takenPhoto != null) {
+        final bytes = await _takenPhoto!.readAsBytes();
+        imageBase64 = await _resizeImage(bytes);
+      } else {
+        imageBase64 = await _getImageBase64(_selectedImagePath!);
+      }
 
       final response = await http.post(
         Uri.parse(extractMenuUrl),
@@ -106,6 +146,7 @@ class _MenuListPageState extends State<MenuListPage> {
           'imageBase64': imageBase64,
         }),
       );
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final items = (data['menuItems']['items'] as List)
@@ -114,11 +155,13 @@ class _MenuListPageState extends State<MenuListPage> {
 
         widget.onMenuExtracted(items);
       } else {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Failed to extract menu items')),
         );
       }
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error: $e')),
       );
@@ -129,116 +172,216 @@ class _MenuListPageState extends State<MenuListPage> {
     }
   }
 
-  Future<void> _takePhoto() async {
-    try {
-      final XFile? photo = await _picker.pickImage(source: ImageSource.camera);
-      if (photo != null) {
-        final bytes = await photo.readAsBytes();
-        final base64Image = await _resizeImage(bytes);
+  Widget _buildTakenPhotoPreview() {
+    if (_takenPhoto == null) return const SizedBox.shrink();
 
+    return GestureDetector(
+      onTap: () {
         setState(() {
-          _isExtractingMenu = true;
+          _selectedImagePath = null;
+          _isTakenPhotoSelected = true;
         });
-
-        final response = await http.post(
-          Uri.parse(extractMenuUrl),
-          headers: {'Content-Type': 'application/json'},
-          body: json.encode({
-            'imageBase64': base64Image,
-          }),
-        );
-
-        if (response.statusCode == 200) {
-          final data = json.decode(response.body);
-          final items = (data['menuItems']['items'] as List)
-              .map((item) => FoodItem.fromJson(item))
-              .toList();
-
-          widget.onMenuExtracted(items);
-        } else {
-          if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to extract menu items')),
-          );
-        }
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
-    } finally {
-      setState(() {
-        _isExtractingMenu = false;
-      });
-    }
+      },
+      child: Container(
+        margin: const EdgeInsets.only(right: 16),
+        width: 300,
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: _isTakenPhotoSelected
+                    ? AppTheme.accentColor.withOpacity(0.3)
+                    : Colors.black.withOpacity(0.1),
+                blurRadius: 8,
+                spreadRadius: 0,
+                offset: Offset(0, _isTakenPhotoSelected ? 3 : 2),
+              ),
+            ],
+            border: Border.all(
+              color: _isTakenPhotoSelected
+                  ? AppTheme.accentColor
+                  : Colors.grey[300]!,
+              width: _isTakenPhotoSelected ? 3 : 2,
+            ),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                if (kIsWeb && _webImage != null)
+                  Image.memory(
+                    _webImage!,
+                    fit: BoxFit.cover,
+                  )
+                else if (!kIsWeb)
+                  Image.file(
+                    File(_takenPhoto!.path),
+                    fit: BoxFit.cover,
+                  ),
+                if (_isTakenPhotoSelected)
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppTheme.accentColor,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Icon(
+                        Icons.check,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                    ),
+                  ),
+                Positioned(
+                  top: 8,
+                  left: 8,
+                  child: Material(
+                    color: Colors.black26,
+                    borderRadius: BorderRadius.circular(20),
+                    child: IconButton(
+                      icon: const Icon(Icons.close),
+                      color: Colors.white,
+                      onPressed: () {
+                        setState(() {
+                          _takenPhoto = null;
+                          _webImage = null;
+                          _isTakenPhotoSelected = false;
+                        });
+                      },
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Menu Scanner')),
+      appBar: AppBar(
+        title: const Text('Food Visualizer'),
+        centerTitle: true,
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text('Select a menu image:'),
-            const SizedBox(height: 16),
+            Text(
+              'Take a photo of menu OR choose an example menu:',
+              style: theme.textTheme.titleMedium,
+            ),
+            const SizedBox(height: 24),
             Container(
-              height: 200,
-              child: _imageFiles.isEmpty
-                  ? const Center(
-                      child: Text('No images found in assets/image/'))
-                  : ListView.builder(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: _imageFiles.length,
-                      itemBuilder: (context, index) {
-                        final imagePath = _imageFiles[index];
-                        final isSelected = imagePath == _selectedImagePath;
-
-                        return GestureDetector(
-                          onTap: () {
-                            setState(() {
-                              _selectedImagePath = imagePath;
-                            });
-                          },
-                          child: Container(
-                            margin: const EdgeInsets.only(right: 16),
-                            decoration: BoxDecoration(
-                              border: Border.all(
-                                color: isSelected ? Colors.blue : Colors.grey,
-                                width: 2,
+              height: 500,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                children: [
+                  if (_takenPhoto != null) _buildTakenPhotoPreview(),
+                  ..._imageFiles.map((imagePath) {
+                    final isSelected = imagePath == _selectedImagePath;
+                    return GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _selectedImagePath = imagePath;
+                          _isTakenPhotoSelected = false;
+                        });
+                      },
+                      child: Container(
+                        margin: const EdgeInsets.only(right: 16),
+                        width: 300,
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          transform: Matrix4.identity()
+                            ..translate(0.0, isSelected ? -8.0 : 0.0, 0.0),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: isSelected
+                                    ? AppTheme.accentColor.withOpacity(0.3)
+                                    : Colors.black.withOpacity(0.1),
+                                blurRadius: 8,
+                                spreadRadius: 0,
+                                offset: Offset(0, isSelected ? 3 : 2),
                               ),
-                            ),
-                            child: Image.asset(
-                              imagePath,
-                              width: 150,
-                              fit: BoxFit.cover,
+                            ],
+                            border: Border.all(
+                              color: isSelected
+                                  ? AppTheme.accentColor
+                                  : Colors.grey[300]!,
+                              width: isSelected ? 3 : 2,
                             ),
                           ),
-                        );
-                      },
-                    ),
-            ),
-            const SizedBox(height: 16),
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  ElevatedButton.icon(
-                    onPressed: _isExtractingMenu ? null : _takePhoto,
-                    icon: const Icon(Icons.camera_alt),
-                    label: const Text('Take Photo'),
-                  ),
-                  ElevatedButton(
-                    onPressed: _isExtractingMenu ? null : _extractMenu,
-                    child: _isExtractingMenu
-                        ? const CircularProgressIndicator()
-                        : const Text('Extract Menu'),
-                  ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: Stack(
+                              children: [
+                                Image.asset(
+                                  imagePath,
+                                  fit: BoxFit.cover,
+                                ),
+                                if (isSelected)
+                                  Positioned(
+                                    top: 8,
+                                    right: 8,
+                                    child: Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: AppTheme.accentColor,
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                      child: const Icon(
+                                        Icons.check,
+                                        color: Colors.white,
+                                        size: 20,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
                 ],
               ),
+            ),
+            const SizedBox(height: 32),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                ElevatedButton.icon(
+                  onPressed: _isExtractingMenu ? null : _takePhoto,
+                  icon: const Icon(Icons.camera_alt),
+                  label: const Text('Take Photo'),
+                ),
+                ElevatedButton(
+                  onPressed: _isExtractingMenu ? null : _extractMenu,
+                  child: _isExtractingMenu
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text('Extract Menu'),
+                ),
+              ],
             ),
           ],
         ),

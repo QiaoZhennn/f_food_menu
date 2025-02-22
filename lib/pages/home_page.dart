@@ -5,6 +5,7 @@ import 'extracted_menu_page.dart';
 import 'generated_image_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'auth_page.dart';
+import '../theme/app_theme.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -97,26 +98,74 @@ class _HomePageState extends State<HomePage> {
             const Center(child: Text('No food item selected')),
         ],
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: Colors.blue,
-        unselectedItemColor: Colors.grey,
-        onTap: _onTabChanged,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.image),
-            label: 'Menu Images',
+      bottomNavigationBar: Theme(
+        data: Theme.of(context).copyWith(
+          splashColor: Colors.transparent,
+          highlightColor: Colors.transparent,
+        ),
+        child: Container(
+          decoration: BoxDecoration(
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 8,
+                offset: const Offset(0, -2),
+              ),
+            ],
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.restaurant_menu),
-            label: 'Extracted Items',
+          child: BottomNavigationBar(
+            currentIndex: _selectedIndex,
+            type: BottomNavigationBarType.fixed,
+            backgroundColor: Colors.white,
+            selectedItemColor: AppTheme.accentColor,
+            unselectedItemColor: AppTheme.primaryColor.withOpacity(0.5),
+            selectedLabelStyle: const TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: 12,
+            ),
+            unselectedLabelStyle: const TextStyle(
+              fontWeight: FontWeight.normal,
+              fontSize: 12,
+            ),
+            elevation: 0,
+            onTap: _onTabChanged,
+            items: [
+              BottomNavigationBarItem(
+                icon: Icon(
+                  Icons.camera_alt_outlined,
+                  color: AppTheme.primaryColor.withOpacity(0.5),
+                ),
+                activeIcon: const Icon(
+                  Icons.camera_alt,
+                  color: AppTheme.accentColor,
+                ),
+                label: 'Menu Scanner',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(
+                  Icons.restaurant_menu_outlined,
+                  color: AppTheme.primaryColor.withOpacity(0.5),
+                ),
+                activeIcon: const Icon(
+                  Icons.restaurant_menu,
+                  color: AppTheme.accentColor,
+                ),
+                label: 'Menu Items',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(
+                  Icons.image_outlined,
+                  color: AppTheme.primaryColor.withOpacity(0.5),
+                ),
+                activeIcon: const Icon(
+                  Icons.image,
+                  color: AppTheme.accentColor,
+                ),
+                label: 'Generated Image',
+              ),
+            ],
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.generating_tokens),
-            label: 'Generated Image',
-          ),
-        ],
+        ),
       ),
     );
   }

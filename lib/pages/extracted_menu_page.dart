@@ -97,7 +97,7 @@ class _ExtractedMenuPageState extends State<ExtractedMenuPage> {
       body: ListView.separated(
         padding: const EdgeInsets.all(16.0),
         itemCount: widget.foodItems.length,
-        separatorBuilder: (context, index) => const Divider(),
+        separatorBuilder: (context, index) => const SizedBox(height: 5),
         itemBuilder: (context, index) {
           final item = widget.foodItems[index];
           final isProcessing = item.name == _processingItemName;
@@ -112,8 +112,7 @@ class _ExtractedMenuPageState extends State<ExtractedMenuPage> {
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (item.price != null)
-                  Text('\$${item.price!.toStringAsFixed(2)}'),
+                if (item.price != null) Text(item.price!.toStringAsFixed(2)),
                 if (isProcessing) ...[
                   const SizedBox(width: 8),
                   const SizedBox(
