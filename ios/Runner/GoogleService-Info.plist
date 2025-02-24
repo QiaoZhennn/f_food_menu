@@ -2,6 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CLIENT_ID</key>
+	<string>1086117261799-k320fg46ou55da9f34ja1ump14j5qdaf.apps.googleusercontent.com</string>
+	<key>REVERSED_CLIENT_ID</key>
+	<string>com.googleusercontent.apps.1086117261799-k320fg46ou55da9f34ja1ump14j5qdaf</string>
 	<key>API_KEY</key>
 	<string>AIzaSyCSlBwe5l9QXy_zNK6mSDOTaLxYtJmai7o</string>
 	<key>GCM_SENDER_ID</key>
@@ -9,7 +13,7 @@
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>com.zhenqiao.foodMenu</string>
+	<string>com.example.foodMenu</string>
 	<key>PROJECT_ID</key>
 	<string>f-food-menu</string>
 	<key>STORAGE_BUCKET</key>
