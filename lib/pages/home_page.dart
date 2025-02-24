@@ -6,6 +6,8 @@ import 'generated_image_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'auth_page.dart';
 import '../theme/app_theme.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -27,13 +29,23 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _checkSignInStatus() async {
-    final prefs = await SharedPreferences.getInstance();
-    final isSignedIn = prefs.getBool('isSignedIn') ?? false;
-
-    if (mounted) {
-      setState(() {
-        _isSignedIn = isSignedIn;
-      });
+    if (kIsWeb) {
+      // For web, check Firebase Auth directly
+      final user = FirebaseAuth.instance.currentUser;
+      if (mounted) {
+        setState(() {
+          _isSignedIn = user != null;
+        });
+      }
+    } else {
+      // For mobile, use SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      final isSignedIn = prefs.getBool('isSignedIn') ?? false;
+      if (mounted) {
+        setState(() {
+          _isSignedIn = isSignedIn;
+        });
+      }
     }
   }
 

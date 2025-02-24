@@ -3,11 +3,14 @@
     "short_name": "Food Menu",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#ffffff",
-    "theme_color": "#ffffff",
+    "background_color": "#FFFFFF",
+    "theme_color": "#FF7043",
     "description": "A Flutter OCR application",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
+    "permissions": [
+        "camera"
+    ],
     "icons": [
         {
             "src": "icons/Icon-192.png",
@@ -31,8 +34,5 @@
             "type": "image/png",
             "purpose": "maskable"
         }
-    ],
-    "permissions": [
-        "camera"
     ]
 }

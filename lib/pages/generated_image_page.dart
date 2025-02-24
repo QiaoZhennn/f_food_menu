@@ -108,7 +108,7 @@ class _GeneratedImagePageState extends State<GeneratedImagePage> {
             const Center(child: CircularProgressIndicator())
           else if (_searchResults.isNotEmpty)
             SizedBox(
-              height: 200,
+              height: 120,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 itemCount: _searchResults.length,
@@ -117,8 +117,8 @@ class _GeneratedImagePageState extends State<GeneratedImagePage> {
                   borderRadius: BorderRadius.circular(8),
                   child: Image.network(
                     _searchResults[index],
-                    width: 200,
-                    height: 200,
+                    width: 120,
+                    height: 120,
                     fit: BoxFit.cover,
                   ),
                 ),
@@ -146,8 +146,8 @@ class _GeneratedImagePageState extends State<GeneratedImagePage> {
             const SizedBox(height: 16),
             Center(
               child: Container(
-                width: 400,
-                height: 400,
+                width: 300,
+                height: 300,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: Colors.grey[300]!),

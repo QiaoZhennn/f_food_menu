@@ -284,7 +284,7 @@ class _MenuListPageState extends State<MenuListPage> {
             ),
             const SizedBox(height: 24),
             Container(
-              height: 500,
+              height: 350,
               child: ListView(
                 scrollDirection: Axis.horizontal,
                 children: [
