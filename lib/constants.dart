@@ -20,3 +20,10 @@ const String searchImagesUrl = String.fromEnvironment(
       ? 'https://searchimages-suwaxy27ya-uc.a.run.app'
       : 'http://127.0.0.1:5001/f-food-menu/us-central1/searchImages',
 );
+
+const String menuAnalysisUrl = String.fromEnvironment(
+  'MENU_ANALYSIS_URL',
+  defaultValue: kReleaseMode
+      ? 'https://menuanalysis-suwaxy27ya-uc.a.run.app'
+      : 'http://127.0.0.1:5001/f-food-menu/us-central1/menuAnalysis',
+);

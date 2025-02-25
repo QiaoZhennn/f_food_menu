@@ -21,6 +21,7 @@ import sharp from "sharp";
 // import {join} from "path";
 import * as serviceAccount from "./service_account.json";
 import {defineSecret} from "firebase-functions/params";
+import {ImageAnnotatorClient} from '@google-cloud/vision';
 
 
 // Initialize Firebase Admin with credentials
@@ -276,6 +277,49 @@ export const searchImages = onRequest(
     } catch (error) {
       logger.error("Error searching images:", error);
       res.status(500).json({error: "Failed to search images"});
+    }
+  }
+);
+
+export const menuAnalysis = onRequest(
+  {
+    cors: true,
+    memory: "1GiB",
+    timeoutSeconds: 60,
+  },
+  async (req: Request, res: Response) => {
+    try {
+      const {imageBase64} = req.body;
+      
+      if (!imageBase64) {
+        res.status(400).json({error: "Image data is required"});
+        return;
+      }
+
+      // Create a client - this will use the application default credentials
+      const client = new ImageAnnotatorClient();
+      
+      // Prepare the image buffer from base64
+      let imageBuffer;
+      if (imageBase64.startsWith('data:')) {
+        // Strip data URL if present
+        const base64Data = imageBase64.split(',')[1];
+        imageBuffer = Buffer.from(base64Data, 'base64');
+      } else {
+        imageBuffer = Buffer.from(imageBase64, 'base64');
+      }
+      
+      // Detect text in the image
+      const [result] = await client.textDetection(imageBuffer);
+      const detections = result.textAnnotations;
+      
+      logger.info("Text detection completed");
+      
+      // Return the text annotations
+      res.json({textAnnotations: detections});
+    } catch (error) {
+      logger.error("Error detecting text:", error);
+      res.status(500).json({error: "Failed to detect text", details: error});
     }
   }
 );

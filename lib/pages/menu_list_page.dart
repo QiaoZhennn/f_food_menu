@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 import '../models/food_item.dart';
-import '../constants.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:image/image.dart' as img;
 import 'dart:math' as math;
 import 'dart:io';
 import '../theme/app_theme.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import '../services/extract_menu_service.dart';
+import '../services/menu_analysis_service.dart';
+import 'menu_analysis_result_page.dart';
 // import 'extracted_menu_page.dart';
 
 class MenuListPage extends StatefulWidget {
@@ -32,6 +33,9 @@ class _MenuListPageState extends State<MenuListPage> {
   XFile? _takenPhoto;
   Uint8List? _webImage;
   bool _isTakenPhotoSelected = false;
+  final _extractMenuService = ExtractMenuService();
+  final _menuAnalysisService = MenuAnalysisService();
+  bool _isAnalyzingMenu = false;
 
   @override
   void initState() {
@@ -56,38 +60,51 @@ class _MenuListPageState extends State<MenuListPage> {
     }
   }
 
-  Future<String> _resizeImage(Uint8List bytes) async {
+  Future<Map<String, dynamic>> _resizeImage(Uint8List bytes) async {
     // Decode image
     img.Image? image = img.decodeImage(bytes);
-    if (image == null) return base64Encode(bytes);
-
-    // Calculate new dimensions
-    int width = image.width;
-    int height = image.height;
-    double scale = 720 / math.max(width, height);
-
-    if (scale < 1) {
-      width = (width * scale).round();
-      height = (height * scale).round();
-
-      // Resize image
-      image = img.copyResize(
-        image,
-        width: width,
-        height: height,
-        interpolation: img.Interpolation.linear,
-      );
+    if (image == null) {
+      return {
+        'base64': base64Encode(bytes),
+        'scale': 1.0,
+        'width': 0,
+        'height': 0
+      };
     }
 
-    // Encode to JPG for smaller size
-    final resizedBytes = img.encodeJpg(image, quality: 85);
-    return base64Encode(resizedBytes);
+    // Store original dimensions
+    int originalWidth = image.width;
+    int originalHeight = image.height;
+
+    // Calculate new dimensions
+    double scale = 720 / math.max(originalWidth, originalHeight);
+
+    // Only resize if image is larger than 720 pixels in any dimension
+    if (scale < 1.0) {
+      int newWidth = (originalWidth * scale).round();
+      int newHeight = (originalHeight * scale).round();
+
+      // Resize the image
+      img.Image resized =
+          img.copyResize(image, width: newWidth, height: newHeight);
+      bytes = img.encodeJpg(resized);
+    } else {
+      // No resizing needed
+      scale = 1.0;
+    }
+
+    return {
+      'base64': base64Encode(bytes),
+      'scale': scale,
+      'width': originalWidth,
+      'height': originalHeight
+    };
   }
 
   Future<String> _getImageBase64(String assetPath) async {
     final ByteData data = await rootBundle.load(assetPath);
     final bytes = data.buffer.asUint8List();
-    return _resizeImage(bytes);
+    return base64Encode(bytes);
   }
 
   Future<void> _takePhoto() async {
@@ -134,32 +151,14 @@ class _MenuListPageState extends State<MenuListPage> {
       String imageBase64;
       if (_isTakenPhotoSelected && _takenPhoto != null) {
         final bytes = await _takenPhoto!.readAsBytes();
-        imageBase64 = await _resizeImage(bytes);
+        final resizeResult = await _resizeImage(bytes);
+        imageBase64 = resizeResult['base64'];
       } else {
         imageBase64 = await _getImageBase64(_selectedImagePath!);
       }
 
-      final response = await http.post(
-        Uri.parse(extractMenuUrl),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          'imageBase64': imageBase64,
-        }),
-      );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        final items = (data['menuItems']['items'] as List)
-            .map((item) => FoodItem.fromJson(item))
-            .toList();
-
-        widget.onMenuExtracted(items);
-      } else {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to extract menu items')),
-        );
-      }
+      final items = await _extractMenuService.extractMenuFromImage(imageBase64);
+      widget.onMenuExtracted(items);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -168,6 +167,81 @@ class _MenuListPageState extends State<MenuListPage> {
     } finally {
       setState(() {
         _isExtractingMenu = false;
+      });
+    }
+  }
+
+  Future<void> _analyzeMenu() async {
+    if (!_isTakenPhotoSelected && _selectedImagePath == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Please select an image or take a photo first')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isAnalyzingMenu = true;
+    });
+
+    try {
+      dynamic imageForAnalysis;
+      Map<String, dynamic> resizeResult;
+      String imageBase64;
+      int originalWidth = 0;
+      int originalHeight = 0;
+      double resizeScale = 1.0;
+
+      if (_isTakenPhotoSelected && _takenPhoto != null) {
+        final bytes = await _takenPhoto!.readAsBytes();
+        resizeResult = await _resizeImage(bytes);
+        imageBase64 = resizeResult['base64'];
+        originalWidth = resizeResult['width'];
+        originalHeight = resizeResult['height'];
+        resizeScale = resizeResult['scale'];
+
+        if (kIsWeb) {
+          imageForAnalysis = _webImage;
+        } else {
+          imageForAnalysis = File(_takenPhoto!.path);
+        }
+      } else {
+        final ByteData data = await rootBundle.load(_selectedImagePath!);
+        final bytes = data.buffer.asUint8List();
+        resizeResult = await _resizeImage(bytes);
+        imageBase64 = resizeResult['base64'];
+        originalWidth = resizeResult['width'];
+        originalHeight = resizeResult['height'];
+        resizeScale = resizeResult['scale'];
+
+        imageForAnalysis = _selectedImagePath!;
+      }
+
+      final analysisResult =
+          await _menuAnalysisService.analyzeMenu(imageBase64);
+
+      if (!mounted) return;
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => MenuAnalysisResultPage(
+            image: imageForAnalysis,
+            boundingPolys: analysisResult,
+            originalWidth: originalWidth,
+            originalHeight: originalHeight,
+            resizeScale: resizeScale,
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error analyzing menu: $e')),
+      );
+    } finally {
+      setState(() {
+        _isAnalyzingMenu = false;
       });
     }
   }
@@ -364,12 +438,16 @@ class _MenuListPageState extends State<MenuListPage> {
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
                 ElevatedButton.icon(
-                  onPressed: _isExtractingMenu ? null : _takePhoto,
+                  onPressed: (_isExtractingMenu || _isAnalyzingMenu)
+                      ? null
+                      : _takePhoto,
                   icon: const Icon(Icons.camera_alt),
                   label: const Text('Take Photo'),
                 ),
                 ElevatedButton(
-                  onPressed: _isExtractingMenu ? null : _extractMenu,
+                  onPressed: (_isExtractingMenu || _isAnalyzingMenu)
+                      ? null
+                      : _extractMenu,
                   child: _isExtractingMenu
                       ? const SizedBox(
                           width: 20,
@@ -380,6 +458,21 @@ class _MenuListPageState extends State<MenuListPage> {
                           ),
                         )
                       : const Text('Extract Menu'),
+                ),
+                ElevatedButton(
+                  onPressed: (_isExtractingMenu || _isAnalyzingMenu)
+                      ? null
+                      : _analyzeMenu,
+                  child: _isAnalyzingMenu
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text('Analyze Menu'),
                 ),
               ],
             ),
