@@ -22,6 +22,7 @@ import sharp from "sharp";
 import * as serviceAccount from "./service_account.json";
 import {defineSecret} from "firebase-functions/params";
 import {ImageAnnotatorClient} from '@google-cloud/vision';
+import {MenuAnalysisService} from "./menu_analysis_service";
 
 
 // Initialize Firebase Admin with credentials
@@ -315,8 +316,13 @@ export const menuAnalysis = onRequest(
       
       logger.info("Text detection completed");
       
-      // Return the text annotations
-      res.json({textAnnotations: detections});
+      // Apply line merging algorithm with proper null check
+      const menuAnalysisService = new MenuAnalysisService();
+      const mergedAnnotations = detections ? 
+        menuAnalysisService.mergeTextLines(detections as any[]) : [];
+      
+      // Return the merged text annotations
+      res.json({textAnnotations: mergedAnnotations});
     } catch (error) {
       logger.error("Error detecting text:", error);
       res.status(500).json({error: "Failed to detect text", details: error});

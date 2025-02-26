@@ -4,7 +4,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user_model.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, kReleaseMode;
 import '../theme/app_theme.dart';
 
 class AuthPage extends StatelessWidget {
@@ -72,6 +72,29 @@ class AuthPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Skip login in debug/development mode
+    if (!kReleaseMode) {
+      // Use a post-frame callback to avoid calling during build
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        onSignedIn();
+      });
+
+      // Show a temporary loading indicator while skipping
+      return const Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Development Mode: Skipping login...'),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Regular login UI for production mode
     return Scaffold(
       body: Stack(
         fit: StackFit.expand,

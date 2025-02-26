@@ -434,45 +434,53 @@ class _MenuListPageState extends State<MenuListPage> {
               ),
             ),
             const SizedBox(height: 32),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                ElevatedButton.icon(
-                  onPressed: (_isExtractingMenu || _isAnalyzingMenu)
-                      ? null
-                      : _takePhoto,
-                  icon: const Icon(Icons.camera_alt),
-                  label: const Text('Take Photo'),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _isExtractingMenu ? null : _takePhoto,
+                    child: const Text('Take Photo'),
+                  ),
                 ),
-                ElevatedButton(
-                  onPressed: (_isExtractingMenu || _isAnalyzingMenu)
-                      ? null
-                      : _extractMenu,
-                  child: _isExtractingMenu
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Text('Extract Menu'),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: (_isExtractingMenu || _selectedImagePath == null)
+                        ? null
+                        : _extractMenu,
+                    child: _isExtractingMenu
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text('Extract Menu'),
+                  ),
                 ),
-                ElevatedButton(
-                  onPressed: (_isExtractingMenu || _isAnalyzingMenu)
-                      ? null
-                      : _analyzeMenu,
-                  child: _isAnalyzingMenu
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Text('Analyze Menu'),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: (_isExtractingMenu || _isAnalyzingMenu)
+                        ? null
+                        : _analyzeMenu,
+                    child: _isAnalyzingMenu
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text('Analyze Menu'),
+                  ),
                 ),
               ],
             ),

@@ -25,6 +25,12 @@ class MenuAnalysisResultPage extends StatefulWidget {
 class _MenuAnalysisResultPageState extends State<MenuAnalysisResultPage> {
   double _displayScale = 1.0;
   Size _currentSize = Size.zero;
+  int? _hoveredBoxIndex;
+  Offset _mousePosition = Offset.zero;
+  final tooltipAnimationDuration = const Duration(milliseconds: 150);
+
+  // Define this helper for hit testing separately from painting
+  final _hitDetectionKey = GlobalKey();
 
   @override
   void didChangeDependencies() {
@@ -68,27 +74,93 @@ class _MenuAnalysisResultPageState extends State<MenuAnalysisResultPage> {
         title: const Text('Menu Analysis Result'),
       ),
       body: Center(
-        child: SizedBox(
-          width: displayWidth,
-          height: displayHeight,
-          child: Stack(
-            children: [
-              // Display the image
-              SizedBox.expand(
-                child: _buildImage(displayWidth, displayHeight),
-              ),
+        child: MouseRegion(
+          onHover: (event) {
+            final RenderBox? renderBox = _hitDetectionKey.currentContext
+                ?.findRenderObject() as RenderBox?;
+            if (renderBox != null) {
+              final localPosition = renderBox.globalToLocal(event.position);
 
-              // Overlay with bounding boxes
-              SizedBox.expand(
-                child: CustomPaint(
-                  painter: BoundingBoxPainter(
-                    boundingPolys: widget.boundingPolys,
-                    resizeScale: widget.resizeScale,
-                    displayScale: _displayScale,
+              // Perform hit test outside of paint method
+              int? hitIndex = _hitTest(localPosition);
+
+              setState(() {
+                _mousePosition = localPosition;
+                _hoveredBoxIndex = hitIndex;
+              });
+            }
+          },
+          onExit: (event) {
+            setState(() {
+              _hoveredBoxIndex = null;
+            });
+          },
+          child: SizedBox(
+            width: displayWidth,
+            height: displayHeight,
+            child: Stack(
+              children: [
+                // Display the image
+                SizedBox.expand(
+                  child: _buildImage(displayWidth, displayHeight),
+                ),
+
+                // Overlay with bounding boxes (only for display, not hit testing)
+                RepaintBoundary(
+                  child: SizedBox.expand(
+                    key: _hitDetectionKey,
+                    child: CustomPaint(
+                      painter: BoundingBoxPainter(
+                        boundingPolys: widget.boundingPolys,
+                        resizeScale: widget.resizeScale,
+                        displayScale: _displayScale,
+                        hoveredIndex: _hoveredBoxIndex,
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            ],
+
+                // Tooltip for text with improved animation and positioning
+                AnimatedOpacity(
+                  opacity: _hoveredBoxIndex != null ? 1.0 : 0.0,
+                  duration: tooltipAnimationDuration,
+                  child: _hoveredBoxIndex != null &&
+                          _hoveredBoxIndex! < widget.boundingPolys.length
+                      ? Positioned(
+                          // Position tooltip so it doesn't cover the text
+                          top: _mousePosition.dy + 20,
+                          left: _mousePosition.dx + 20,
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.8),
+                              borderRadius: BorderRadius.circular(4),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.2),
+                                  blurRadius: 8,
+                                  offset: const Offset(2, 2),
+                                ),
+                              ],
+                            ),
+                            constraints: BoxConstraints(
+                              maxWidth: MediaQuery.of(context).size.width * 0.3,
+                            ),
+                            child: Text(
+                              widget.boundingPolys[_hoveredBoxIndex!]
+                                      ['description'] ??
+                                  'No text',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                        )
+                      : const SizedBox.shrink(),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -129,52 +201,120 @@ class _MenuAnalysisResultPageState extends State<MenuAnalysisResultPage> {
     }
     return const SizedBox.shrink();
   }
+
+  // Add this helper method for hit testing
+  int? _hitTest(Offset position) {
+    // Loop through bounding polys to find hit
+    for (int i = 0; i < widget.boundingPolys.length; i++) {
+      final poly = widget.boundingPolys[i];
+      final vertices = poly['boundingPoly']?['vertices'] as List?;
+      if (vertices == null || vertices.isEmpty) continue;
+
+      final points = <Offset>[];
+      for (final vertex in vertices) {
+        final x =
+            ((vertex['x'] as num?) ?? 0) / widget.resizeScale * _displayScale;
+        final y =
+            ((vertex['y'] as num?) ?? 0) / widget.resizeScale * _displayScale;
+        points.add(Offset(x, y));
+      }
+
+      if (points.length >= 3 && _isPointInPolygon(position, points)) {
+        return i;
+      }
+    }
+    return null;
+  }
+
+  bool _isPointInPolygon(Offset point, List<Offset> vertices) {
+    if (vertices.length < 3) return false;
+
+    bool isInside = false;
+    int i = 0, j = vertices.length - 1;
+
+    for (i = 0; i < vertices.length; i++) {
+      if (vertices[j].dy == vertices[i].dy) {
+        j = i;
+        continue;
+      }
+
+      if (((vertices[i].dy > point.dy) != (vertices[j].dy > point.dy)) &&
+          (point.dx <
+              (vertices[j].dx - vertices[i].dx) *
+                      (point.dy - vertices[i].dy) /
+                      (vertices[j].dy - vertices[i].dy) +
+                  vertices[i].dx)) {
+        isInside = !isInside;
+      }
+      j = i;
+    }
+
+    return isInside;
+  }
 }
 
+// Update the CustomPainter to only handle painting
 class BoundingBoxPainter extends CustomPainter {
   final List<Map<String, dynamic>> boundingPolys;
-  final double resizeScale; // Scale applied during image resize before analysis
-  final double displayScale; // Scale applied for UI display
+  final double resizeScale;
+  final double displayScale;
+  final int? hoveredIndex;
 
   BoundingBoxPainter({
     required this.boundingPolys,
     required this.resizeScale,
     required this.displayScale,
+    this.hoveredIndex,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.red
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.0;
+    try {
+      final paint = Paint()
+        ..color = Colors.red
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.0;
 
-    for (final poly in boundingPolys) {
-      final vertices = poly['boundingPoly']?['vertices'] as List?;
-      if (vertices == null || vertices.isEmpty) continue;
+      final hoverPaint = Paint()
+        ..color = Colors.red.withOpacity(0.2)
+        ..style = PaintingStyle.fill;
 
-      final path = Path();
-      bool firstPoint = true;
+      for (int i = 0; i < boundingPolys.length; i++) {
+        final poly = boundingPolys[i];
+        final vertices = poly['boundingPoly']?['vertices'] as List?;
+        if (vertices == null || vertices.isEmpty) continue;
 
-      for (final vertex in vertices) {
-        // First convert back to original coordinates, then apply display scale
-        // API coordinates are based on the resized image (720px max)
-        final x = (vertex['x'] ?? 0) / resizeScale * displayScale;
-        final y = (vertex['y'] ?? 0) / resizeScale * displayScale;
+        final path = Path();
+        bool firstPoint = true;
 
-        if (firstPoint) {
-          path.moveTo(x, y);
-          firstPoint = false;
-        } else {
-          path.lineTo(x, y);
+        for (final vertex in vertices) {
+          final x = ((vertex['x'] as num?) ?? 0) / resizeScale * displayScale;
+          final y = ((vertex['y'] as num?) ?? 0) / resizeScale * displayScale;
+
+          if (firstPoint) {
+            path.moveTo(x, y);
+            firstPoint = false;
+          } else {
+            path.lineTo(x, y);
+          }
         }
-      }
-      path.close();
+        path.close();
 
-      canvas.drawPath(path, paint);
+        // Draw hover highlight if this is the hovered box
+        if (i == hoveredIndex) {
+          canvas.drawPath(path, hoverPaint);
+        }
+
+        // Draw outline for all boxes
+        canvas.drawPath(path, paint);
+      }
+    } catch (e) {
+      print('Error in BoundingBoxPainter: $e');
     }
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+  bool shouldRepaint(covariant BoundingBoxPainter oldDelegate) =>
+      oldDelegate.hoveredIndex != hoveredIndex ||
+      oldDelegate.displayScale != displayScale;
 }
