@@ -21,6 +21,17 @@ class _GeneratedImagePageState extends State<GeneratedImagePage> {
   List<String> _searchResults = [];
   bool _isGenerating = false;
   bool _isSearching = false;
+  FoodItem? _previousFoodItem;
+
+  @override
+  void didUpdateWidget(GeneratedImagePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // If the food item changed, search for new images
+    if (widget.foodItem != null && widget.foodItem != _previousFoodItem) {
+      _previousFoodItem = widget.foodItem;
+      _searchImages();
+    }
+  }
 
   @override
   void initState() {
@@ -33,6 +44,7 @@ class _GeneratedImagePageState extends State<GeneratedImagePage> {
 
     setState(() {
       _isSearching = true;
+      _searchResults = []; // Clear previous results
     });
 
     try {

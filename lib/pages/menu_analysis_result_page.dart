@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
 import 'dart:typed_data';
-import '../theme/app_theme.dart';
+// import '../theme/app_theme.dart';
+// import 'dart:ui';
+import '../components/water_drop_button.dart';
+import '../models/food_item.dart';
 
 class MenuAnalysisResultPage extends StatefulWidget {
   final dynamic image;
@@ -10,6 +13,7 @@ class MenuAnalysisResultPage extends StatefulWidget {
   final int originalWidth;
   final int originalHeight;
   final double resizeScale;
+  final Function(FoodItem)? onMenuItemSelected;
 
   const MenuAnalysisResultPage({
     super.key,
@@ -19,6 +23,7 @@ class MenuAnalysisResultPage extends StatefulWidget {
     required this.originalWidth,
     required this.originalHeight,
     required this.resizeScale,
+    this.onMenuItemSelected,
   });
 
   @override
@@ -62,6 +67,23 @@ class _MenuAnalysisResultPageState extends State<MenuAnalysisResultPage> {
 
   // Show dialog with menu item details
   void _showMenuItemDetails(Map<String, dynamic> menuItem) {
+    // If we have a navigation callback, use it
+    if (widget.onMenuItemSelected != null) {
+      // Convert the menu item to a FoodItem
+      final foodItem = FoodItem(
+        name: menuItem['name'] ?? '',
+        ingredients: menuItem['ingredients'] != null
+            ? List<String>.from(menuItem['ingredients'])
+            : [],
+        drinkFlavor: menuItem['drinkFlavor'] ?? '',
+        price: menuItem['price'] != null ? menuItem['price'].toDouble() : 0.0,
+      );
+
+      widget.onMenuItemSelected!(foodItem);
+      return;
+    }
+
+    // Otherwise show the dialog as before
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -169,7 +191,7 @@ class _MenuAnalysisResultPageState extends State<MenuAnalysisResultPage> {
               children: [
                 // Display the image
                 SizedBox.expand(
-                  child: _buildImage(displayWidth, displayHeight),
+                  child: _buildImage(),
                 ),
 
                 // Overlay with bounding boxes
@@ -185,85 +207,39 @@ class _MenuAnalysisResultPageState extends State<MenuAnalysisResultPage> {
                         hoveredBoxIndex: _hoveredBoxIndex,
                         hoveredMenuItemIndex: _hoveredMenuItemIndex,
                         showOcrBoxes: _showOcrBoxes,
-                        showMenuItemBoxes:
-                            false, // Hide green boxes, we'll use buttons instead
+                        showMenuItemBoxes: false,
                       ),
                     ),
                   ),
                 ),
 
-                // Add transparent buttons for menu items
+                // Add water drop buttons for menu items
                 if (_showMenuItemButtons)
-                  ...widget.menuItems.map((menuItem) {
+                  ...widget.menuItems.asMap().entries.map((entry) {
+                    final index = entry.key;
+                    final menuItem = entry.value;
                     final vertices = menuItem['boundingBox'] as List?;
-                    if (vertices == null || vertices.isEmpty)
+
+                    if (vertices == null || vertices.isEmpty) {
                       return const SizedBox.shrink();
-
-                    // Calculate bounding rectangle for the button
-                    double minX = double.infinity;
-                    double minY = double.infinity;
-                    double maxX = 0;
-                    double maxY = 0;
-
-                    for (final vertex in vertices) {
-                      final x = ((vertex['x'] as num?) ?? 0) /
-                          widget.resizeScale *
-                          _displayScale;
-                      final y = ((vertex['y'] as num?) ?? 0) /
-                          widget.resizeScale *
-                          _displayScale;
-
-                      minX = minX > x ? x : minX;
-                      minY = minY > y ? y : minY;
-                      maxX = maxX < x ? x : maxX;
-                      maxY = maxY < y ? y : maxY;
                     }
 
-                    final index = widget.menuItems.indexOf(menuItem);
-                    final isHovered = index == _hoveredMenuItemIndex;
-
-                    return Positioned(
-                      left: minX,
-                      top: minY,
-                      width: maxX - minX,
-                      height: maxY - minY,
-                      child: GestureDetector(
-                        onTap: () => _showMenuItemDetails(menuItem),
-                        child: MouseRegion(
-                          onEnter: (_) {
-                            setState(() {
-                              _hoveredMenuItemIndex = index;
-                              _hoveredBoxIndex = null;
-                            });
-                          },
-                          onExit: (_) {
-                            setState(() {
-                              _hoveredMenuItemIndex = null;
-                            });
-                          },
-                          child: Container(
-                            decoration: BoxDecoration(
-                              border: Border.all(
-                                color: AppTheme.accentColor,
-                                width: 2,
-                              ),
-                              color: isHovered
-                                  ? AppTheme.accentColor.withOpacity(0.2)
-                                  : Colors.transparent,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Center(
-                              child: isHovered
-                                  ? Icon(
-                                      Icons.info_outline,
-                                      color: AppTheme.accentColor,
-                                      size: 24,
-                                    )
-                                  : null,
-                            ),
-                          ),
-                        ),
-                      ),
+                    return WaterDropButton(
+                      parentImageWidth: widget.originalWidth,
+                      parentImageHeight: widget.originalHeight,
+                      displayScale: _displayScale,
+                      resizeScale: widget.resizeScale,
+                      boundingBox: vertices,
+                      onTap: () => _showMenuItemDetails(menuItem),
+                      isHovered: index == _hoveredMenuItemIndex,
+                      onHoverChanged: (isHovered) {
+                        setState(() {
+                          _hoveredMenuItemIndex = isHovered ? index : null;
+                          if (isHovered) {
+                            _hoveredBoxIndex = null;
+                          }
+                        });
+                      },
                     );
                   }).toList(),
 
@@ -312,39 +288,43 @@ class _MenuAnalysisResultPageState extends State<MenuAnalysisResultPage> {
     );
   }
 
-  Widget _buildImage(double width, double height) {
+  Widget _buildImage() {
+    Widget imageWidget;
+
     if (widget.image is String) {
-      if ((widget.image as String).startsWith('assets/')) {
-        return Image.asset(
-          widget.image,
-          width: width,
-          height: height,
-          fit: BoxFit.fill,
-        );
-      } else {
-        return Image.file(
-          File(widget.image),
-          width: width,
-          height: height,
-          fit: BoxFit.fill,
-        );
-      }
+      // Asset image
+      imageWidget = Image.asset(
+        widget.image as String,
+        fit: BoxFit.contain, // Use contain to maintain aspect ratio
+        width: widget.originalWidth * _displayScale,
+        height: widget.originalHeight * _displayScale,
+      );
     } else if (widget.image is File) {
-      return Image.file(
-        widget.image,
-        width: width,
-        height: height,
-        fit: BoxFit.fill,
+      // File image (from camera or gallery on mobile)
+      imageWidget = Image.file(
+        widget.image as File,
+        fit: BoxFit.contain,
+        width: widget.originalWidth * _displayScale,
+        height: widget.originalHeight * _displayScale,
       );
     } else if (widget.image is Uint8List) {
-      return Image.memory(
-        widget.image,
-        width: width,
-        height: height,
-        fit: BoxFit.fill,
+      // Memory image (from camera or gallery on web)
+      imageWidget = Image.memory(
+        widget.image as Uint8List,
+        fit: BoxFit.contain,
+        width: widget.originalWidth * _displayScale,
+        height: widget.originalHeight * _displayScale,
       );
+    } else {
+      // Fallback
+      imageWidget = const Center(child: Text('Unsupported image format'));
     }
-    return const SizedBox.shrink();
+
+    return Container(
+      width: widget.originalWidth * _displayScale,
+      height: widget.originalHeight * _displayScale,
+      child: imageWidget,
+    );
   }
 
   void _hitTest(Offset position) {
@@ -553,4 +533,35 @@ class BoundingBoxPainter extends CustomPainter {
       oldDelegate.displayScale != displayScale ||
       oldDelegate.showOcrBoxes != showOcrBoxes ||
       oldDelegate.showMenuItemBoxes != showMenuItemBoxes;
+}
+
+class WaterDropClipper extends CustomClipper<Path> {
+  @override
+  Path getClip(Size size) {
+    final path = Path();
+    final w = size.width;
+    final h = size.height;
+
+    // Create a more organic shape with bezier curves
+    path.moveTo(w * 0.1, h * 0.3); // Start point
+
+    // Top edge with wave
+    path.quadraticBezierTo(w * 0.2, h * 0.1, w * 0.5, h * 0.15);
+    path.quadraticBezierTo(w * 0.8, h * 0.2, w * 0.9, h * 0.3);
+
+    // Right edge with slight curve
+    path.quadraticBezierTo(w * 0.95, h * 0.5, w * 0.9, h * 0.7);
+
+    // Bottom edge with wave
+    path.quadraticBezierTo(w * 0.8, h * 0.9, w * 0.5, h * 0.85);
+    path.quadraticBezierTo(w * 0.2, h * 0.8, w * 0.1, h * 0.7);
+
+    // Left edge with slight curve
+    path.quadraticBezierTo(w * 0.05, h * 0.5, w * 0.1, h * 0.3);
+
+    return path;
+  }
+
+  @override
+  bool shouldReclip(CustomClipper<Path> oldClipper) => false;
 }

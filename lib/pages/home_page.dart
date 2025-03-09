@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'auth_page.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'menu_analysis_result_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -17,9 +18,10 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   int _selectedIndex = 0;
-  List<FoodItem>? _extractedItems;
-  bool _isSignedIn = false;
+  List<FoodItem> _extractedMenuItems = [];
+  Widget? _analysisResultWidget;
   FoodItem? _selectedFoodItem;
+  bool _isSignedIn = false;
 
   @override
   void initState() {
@@ -54,35 +56,6 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  void onMenuExtracted(List<FoodItem> items) {
-    setState(() {
-      _extractedItems = items;
-      _selectedIndex = 1; // Switch to extracted menu tab
-    });
-  }
-
-  void onImageGenerated(String imageUrl, String prompt, FoodItem foodItem) {
-    setState(() {
-      _selectedFoodItem = foodItem;
-      _selectedIndex = 2;
-    });
-  }
-
-  void _onTabChanged(int index) {
-    if (index == 1) {
-      setState(() {
-        _selectedFoodItem = null;
-      });
-    }
-
-    if (index == 1 && _extractedItems == null) return;
-    if (index == 2 && _selectedFoodItem == null) return;
-
-    setState(() {
-      _selectedIndex = index;
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     if (!_isSignedIn) {
@@ -90,75 +63,82 @@ class _HomePageState extends State<HomePage> {
     }
 
     return Scaffold(
+      appBar: AppBar(
+        title: const Text('Food Visualizer'),
+      ),
       body: IndexedStack(
         index: _selectedIndex,
         children: [
-          MenuListPage(onMenuExtracted: onMenuExtracted),
-          if (_extractedItems != null)
-            ExtractedMenuPage(
-              foodItems: _extractedItems!,
-              onImageGenerated: onImageGenerated,
-            )
-          else
-            const Center(child: Text('No menu items extracted yet')),
-          if (_selectedFoodItem != null)
-            GeneratedImagePage(
-              foodItem: _selectedFoodItem,
-            )
-          else
-            const Center(child: Text('No food item selected')),
+          MenuListPage(
+            onMenuExtracted: (menuItems) {
+              setState(() {
+                _extractedMenuItems = menuItems;
+              });
+            },
+            onAnalysisComplete: (widget) {
+              setState(() {
+                _analysisResultWidget = widget;
+                _selectedIndex = 1; // Navigate to Extracted Menu tab
+              });
+            },
+          ),
+          _analysisResultWidget != null
+              ? MenuAnalysisResultPage(
+                  image:
+                      (_analysisResultWidget as MenuAnalysisResultPage).image,
+                  boundingPolys:
+                      (_analysisResultWidget as MenuAnalysisResultPage)
+                          .boundingPolys,
+                  menuItems: (_analysisResultWidget as MenuAnalysisResultPage)
+                      .menuItems,
+                  originalWidth:
+                      (_analysisResultWidget as MenuAnalysisResultPage)
+                          .originalWidth,
+                  originalHeight:
+                      (_analysisResultWidget as MenuAnalysisResultPage)
+                          .originalHeight,
+                  resizeScale: (_analysisResultWidget as MenuAnalysisResultPage)
+                      .resizeScale,
+                  onMenuItemSelected: (foodItem) {
+                    setState(() {
+                      _selectedFoodItem = foodItem;
+                      _selectedIndex = 2; // Navigate to Generated Image tab
+                    });
+                  },
+                )
+              : ExtractedMenuPage(
+                  menuItems: _extractedMenuItems,
+                  onFoodItemSelected: (foodItem) {
+                    setState(() {
+                      _selectedFoodItem = foodItem;
+                      _selectedIndex = 2; // Navigate to Generated Image tab
+                    });
+                  },
+                ),
+          GeneratedImagePage(foodItem: _selectedFoodItem),
         ],
       ),
-      bottomNavigationBar: Theme(
-        data: Theme.of(context).copyWith(
-          splashColor: Colors.transparent,
-          highlightColor: Colors.transparent,
-        ),
-        child: Container(
-          decoration: BoxDecoration(
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.1),
-                blurRadius: 8,
-                offset: const Offset(0, -2),
-              ),
-            ],
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _selectedIndex,
+        onTap: (index) {
+          setState(() {
+            _selectedIndex = index;
+          });
+        },
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.camera_alt),
+            label: 'Scan Menu',
           ),
-          child: BottomNavigationBar(
-            currentIndex: _selectedIndex,
-            elevation: 0,
-            onTap: _onTabChanged,
-            items: const [
-              BottomNavigationBarItem(
-                icon: Icon(
-                  Icons.camera_alt_outlined,
-                ),
-                activeIcon: const Icon(
-                  Icons.camera_alt,
-                ),
-                label: 'Menu Scanner',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(
-                  Icons.restaurant_menu_outlined,
-                ),
-                activeIcon: const Icon(
-                  Icons.restaurant_menu,
-                ),
-                label: 'Menu Items',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(
-                  Icons.image_outlined,
-                ),
-                activeIcon: const Icon(
-                  Icons.image,
-                ),
-                label: 'Generated Image',
-              ),
-            ],
+          BottomNavigationBarItem(
+            icon: Icon(Icons.menu_book),
+            label: 'Extracted Menu',
           ),
-        ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.image),
+            label: 'Generated Image',
+          ),
+        ],
       ),
     );
   }

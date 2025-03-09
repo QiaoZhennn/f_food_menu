@@ -8,17 +8,17 @@ import 'dart:math' as math;
 import 'dart:io';
 import '../theme/app_theme.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import '../services/extract_menu_service.dart';
 import '../services/menu_analysis_service.dart';
 import 'menu_analysis_result_page.dart';
-// import 'extracted_menu_page.dart';
 
 class MenuListPage extends StatefulWidget {
   final Function(List<FoodItem>) onMenuExtracted;
+  final Function(Widget analysisResultWidget) onAnalysisComplete;
 
   const MenuListPage({
     super.key,
     required this.onMenuExtracted,
+    required this.onAnalysisComplete,
   });
 
   @override
@@ -28,12 +28,10 @@ class MenuListPage extends StatefulWidget {
 class _MenuListPageState extends State<MenuListPage> {
   String? _selectedImagePath;
   List<String> _imageFiles = [];
-  bool _isExtractingMenu = false;
   final ImagePicker _picker = ImagePicker();
   XFile? _takenPhoto;
   Uint8List? _webImage;
   bool _isTakenPhotoSelected = false;
-  final _extractMenuService = ExtractMenuService();
   final _menuAnalysisService = MenuAnalysisService();
   bool _isAnalyzingMenu = false;
 
@@ -114,8 +112,8 @@ class _MenuListPageState extends State<MenuListPage> {
         if (kIsWeb) {
           final bytes = await photo.readAsBytes();
           setState(() {
-            _webImage = bytes;
             _takenPhoto = photo;
+            _webImage = bytes;
             _selectedImagePath = null;
             _isTakenPhotoSelected = true;
           });
@@ -128,46 +126,32 @@ class _MenuListPageState extends State<MenuListPage> {
         }
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error taking photo: $e')),
-      );
+      print('Error taking photo: $e');
     }
   }
 
-  Future<void> _extractMenu() async {
-    if (!_isTakenPhotoSelected && _selectedImagePath == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Please select an image or take a photo first')),
-      );
-      return;
-    }
-
-    setState(() {
-      _isExtractingMenu = true;
-    });
-
+  Future<void> _pickImage() async {
     try {
-      String imageBase64;
-      if (_isTakenPhotoSelected && _takenPhoto != null) {
-        final bytes = await _takenPhoto!.readAsBytes();
-        final resizeResult = await _resizeImage(bytes);
-        imageBase64 = resizeResult['base64'];
-      } else {
-        imageBase64 = await _getImageBase64(_selectedImagePath!);
+      final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
+      if (image != null) {
+        if (kIsWeb) {
+          final bytes = await image.readAsBytes();
+          setState(() {
+            _takenPhoto = image;
+            _webImage = bytes;
+            _selectedImagePath = null;
+            _isTakenPhotoSelected = true;
+          });
+        } else {
+          setState(() {
+            _takenPhoto = image;
+            _selectedImagePath = null;
+            _isTakenPhotoSelected = true;
+          });
+        }
       }
-
-      final items = await _extractMenuService.extractMenuFromImage(imageBase64);
-      widget.onMenuExtracted(items);
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
-    } finally {
-      setState(() {
-        _isExtractingMenu = false;
-      });
+      print('Error picking image: $e');
     }
   }
 
@@ -222,17 +206,14 @@ class _MenuListPageState extends State<MenuListPage> {
 
       if (!mounted) return;
 
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => MenuAnalysisResultPage(
-            image: imageForAnalysis,
-            boundingPolys: analysisResult['extractedList'],
-            menuItems: analysisResult['menuItems'],
-            originalWidth: originalWidth,
-            originalHeight: originalHeight,
-            resizeScale: resizeScale,
-          ),
+      widget.onAnalysisComplete(
+        MenuAnalysisResultPage(
+          image: imageForAnalysis,
+          boundingPolys: analysisResult['extractedList'],
+          menuItems: analysisResult['menuItems'],
+          originalWidth: originalWidth,
+          originalHeight: originalHeight,
+          resizeScale: resizeScale,
         ),
       );
     } catch (e) {
@@ -339,151 +320,201 @@ class _MenuListPageState extends State<MenuListPage> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+  Widget _buildImageGrid() {
+    // Create a list of items to display in the grid
+    final List<Widget> gridItems = [];
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Food Visualizer'),
-        centerTitle: true,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              'Take a photo of menu OR choose an example menu:',
-              style: theme.textTheme.titleMedium,
+    // Add the taken photo as the first item if available
+    if (_takenPhoto != null) {
+      gridItems.add(
+        GestureDetector(
+          onTap: () {
+            setState(() {
+              _selectedImagePath = null;
+              _isTakenPhotoSelected = true;
+            });
+          },
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: _isTakenPhotoSelected
+                    ? AppTheme.accentColor
+                    : Colors.grey[300]!,
+                width: _isTakenPhotoSelected ? 3 : 1,
+              ),
             ),
-            const SizedBox(height: 24),
-            Container(
-              height: 350,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(7),
+              child: Stack(
+                fit: StackFit.expand,
                 children: [
-                  if (_takenPhoto != null) _buildTakenPhotoPreview(),
-                  ..._imageFiles.map((imagePath) {
-                    final isSelected = imagePath == _selectedImagePath;
-                    return GestureDetector(
-                      onTap: () {
-                        setState(() {
-                          _selectedImagePath = imagePath;
-                          _isTakenPhotoSelected = false;
-                        });
-                      },
+                  if (kIsWeb && _webImage != null)
+                    Image.memory(
+                      _webImage!,
+                      fit: BoxFit.cover,
+                    )
+                  else if (!kIsWeb)
+                    Image.file(
+                      File(_takenPhoto!.path),
+                      fit: BoxFit.cover,
+                    ),
+                  if (_isTakenPhotoSelected)
+                    Positioned(
+                      top: 4,
+                      right: 4,
                       child: Container(
-                        margin: const EdgeInsets.only(right: 16),
-                        width: 300,
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          transform: Matrix4.identity()
-                            ..translate(0.0, isSelected ? -8.0 : 0.0, 0.0),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(12),
-                            boxShadow: [
-                              BoxShadow(
-                                color: isSelected
-                                    ? AppTheme.accentColor.withOpacity(0.3)
-                                    : Colors.black.withOpacity(0.1),
-                                blurRadius: 8,
-                                spreadRadius: 0,
-                                offset: Offset(0, isSelected ? 3 : 2),
-                              ),
-                            ],
-                            border: Border.all(
-                              color: isSelected
-                                  ? AppTheme.accentColor
-                                  : Colors.grey[300]!,
-                              width: isSelected ? 3 : 2,
-                            ),
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(12),
-                            child: Stack(
-                              children: [
-                                Image.asset(
-                                  imagePath,
-                                  fit: BoxFit.cover,
-                                ),
-                                if (isSelected)
-                                  Positioned(
-                                    top: 8,
-                                    right: 8,
-                                    child: Container(
-                                      padding: const EdgeInsets.all(8),
-                                      decoration: BoxDecoration(
-                                        color: AppTheme.accentColor,
-                                        borderRadius: BorderRadius.circular(20),
-                                      ),
-                                      child: const Icon(
-                                        Icons.check,
-                                        color: Colors.white,
-                                        size: 20,
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: AppTheme.accentColor,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.check,
+                          color: Colors.white,
+                          size: 12,
                         ),
                       ),
-                    );
-                  }).toList(),
+                    ),
                 ],
               ),
             ),
-            const SizedBox(height: 32),
-            Column(
-              mainAxisSize: MainAxisSize.min,
+          ),
+        ),
+      );
+    }
+
+    // Add the sample images
+    for (final imagePath in _imageFiles) {
+      final isSelected = imagePath == _selectedImagePath;
+
+      gridItems.add(
+        GestureDetector(
+          onTap: () {
+            setState(() {
+              _selectedImagePath = imagePath;
+              _isTakenPhotoSelected = false;
+            });
+          },
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: isSelected ? AppTheme.accentColor : Colors.grey[300]!,
+                width: isSelected ? 3 : 1,
+              ),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(7),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  Image.asset(
+                    imagePath,
+                    fit: BoxFit.cover,
+                  ),
+                  if (isSelected)
+                    Positioned(
+                      top: 4,
+                      right: 4,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: AppTheme.accentColor,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.check,
+                          color: Colors.white,
+                          size: 12,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
+        childAspectRatio: 1.0,
+      ),
+      itemCount: gridItems.length,
+      itemBuilder: (context, index) => gridItems[index],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Select a menu image',
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    color: AppTheme.textColor,
+                  ),
+            ),
+            const SizedBox(height: 16),
+            Row(
               children: [
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _isExtractingMenu ? null : _takePhoto,
-                    child: const Text('Take Photo'),
-                  ),
+                ElevatedButton.icon(
+                  onPressed: _takePhoto,
+                  icon: const Icon(Icons.camera_alt),
+                  label: const Text('Take Photo'),
                 ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: (_isExtractingMenu || _selectedImagePath == null)
-                        ? null
-                        : _extractMenu,
-                    child: _isExtractingMenu
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Text('Extract Menu'),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: (_isExtractingMenu || _isAnalyzingMenu)
-                        ? null
-                        : _analyzeMenu,
-                    child: _isAnalyzingMenu
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Text('Analyze Menu'),
-                  ),
+                const SizedBox(width: 16),
+                ElevatedButton.icon(
+                  onPressed: _pickImage,
+                  icon: const Icon(Icons.photo_library),
+                  label: const Text('Pick Image'),
                 ),
               ],
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'Menu Images',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            _buildImageGrid(),
+            const SizedBox(height: 24),
+            Center(
+              child: ElevatedButton.icon(
+                onPressed:
+                    (_selectedImagePath != null || _takenPhoto != null) &&
+                            !_isAnalyzingMenu
+                        ? _analyzeMenu
+                        : null,
+                icon: _isAnalyzingMenu
+                    ? const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.analytics),
+                label: const Text('Analyze Menu'),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
+                ),
+              ),
             ),
           ],
         ),

@@ -1,3 +1,4 @@
+/* eslint-disable max-len, require-jsdoc  */
 interface Vertex {
   x: number;
   y: number;
@@ -24,18 +25,18 @@ export class MenuAnalysisService {
 
     // Skip the first annotation (full text) and just process individual words
     const wordAnnotations = textAnnotations.slice(1);
-    
+
     // Detect text orientation
     const orientation = this.detectTextOrientation(wordAnnotations);
-    
+
     // Group words based on orientation
-    const lines = orientation === 'horizontal' 
-      ? this.groupIntoLines(wordAnnotations)
-      : this.groupIntoVerticalLines(wordAnnotations);
-    
+    const lines = orientation === "horizontal" ?
+      this.groupIntoLines(wordAnnotations) :
+      this.groupIntoVerticalLines(wordAnnotations);
+
     // Merge words in each line into a single bounding box
     const mergedLines = this.mergeLines(lines);
-    
+
     // Return only the merged line annotations (no full text annotation)
     return mergedLines;
   }
@@ -62,7 +63,7 @@ export class MenuAnalysisService {
         currentLine.push(current);
       } else {
         // Sort the line by X position (left to right)
-        currentLine.sort((a, b) => 
+        currentLine.sort((a, b) =>
           this.getCenter(a.boundingPoly).x - this.getCenter(b.boundingPoly).x
         );
         lines.push(currentLine);
@@ -72,7 +73,7 @@ export class MenuAnalysisService {
 
     // Add the last line
     if (currentLine.length > 0) {
-      currentLine.sort((a, b) => 
+      currentLine.sort((a, b) =>
         this.getCenter(a.boundingPoly).x - this.getCenter(b.boundingPoly).x
       );
       lines.push(currentLine);
@@ -82,37 +83,37 @@ export class MenuAnalysisService {
   }
 
   private mergeLines(lines: TextAnnotation[][]): TextAnnotation[] {
-    return lines.map(line => {
+    return lines.map((line) => {
       // Find the minimum and maximum coordinates for the merged bounding box
-      let minX = Infinity, minY = Infinity;
-      let maxX = -Infinity, maxY = -Infinity;
-      
+      let minX = Infinity; let minY = Infinity;
+      let maxX = -Infinity; let maxY = -Infinity;
+
       // Combine text from all annotations in the line
-      const mergedText = line.map(a => a.description).join(' ');
-      
+      const mergedText = line.map((a) => a.description).join(" ");
+
       // Find the boundaries of the line's bounding box
-      line.forEach(annotation => {
-        annotation.boundingPoly.vertices.forEach(vertex => {
+      line.forEach((annotation) => {
+        annotation.boundingPoly.vertices.forEach((vertex) => {
           minX = Math.min(minX, vertex.x || 0);
           minY = Math.min(minY, vertex.y || 0);
           maxX = Math.max(maxX, vertex.x || 0);
           maxY = Math.max(maxY, vertex.y || 0);
         });
       });
-      
+
       // Create a new merged annotation
       return {
         description: mergedText,
         boundingPoly: {
           vertices: [
-            { x: minX, y: minY }, // top-left
-            { x: maxX, y: minY }, // top-right
-            { x: maxX, y: maxY }, // bottom-right
-            { x: minX, y: maxY }  // bottom-left
+            {x: minX, y: minY}, // top-left
+            {x: maxX, y: minY}, // top-right
+            {x: maxX, y: maxY}, // bottom-right
+            {x: minX, y: maxY}, // bottom-left
           ],
-          normalizedVertices: []
+          normalizedVertices: [],
         },
-        locale: line[0].locale || 'en'
+        locale: line[0].locale || "en",
       };
     });
   }
@@ -126,40 +127,40 @@ export class MenuAnalysisService {
   }
 
   private getAverageY(annotations: TextAnnotation[]): number {
-    return annotations.reduce((sum, ann) => 
+    return annotations.reduce((sum, ann) =>
       sum + this.getCenter(ann.boundingPoly).y, 0
     ) / annotations.length;
   }
 
   private estimateLineHeight(annotations: TextAnnotation[]): number {
     // Calculate average height of annotations
-    const heights = annotations.map(ann => {
+    const heights = annotations.map((ann) => {
       const vertices = ann.boundingPoly.vertices;
-      const topY = Math.min(...vertices.map(v => v.y || 0));
-      const bottomY = Math.max(...vertices.map(v => v.y || 0));
+      const topY = Math.min(...vertices.map((v) => v.y || 0));
+      const bottomY = Math.max(...vertices.map((v) => v.y || 0));
       return bottomY - topY;
     });
-    
+
     return heights.reduce((sum, h) => sum + h, 0) / heights.length;
   }
 
-  private detectTextOrientation(annotations: TextAnnotation[]): 'horizontal' | 'vertical' {
+  private detectTextOrientation(annotations: TextAnnotation[]): "horizontal" | "vertical" {
     let horizontalCount = 0;
     let verticalCount = 0;
-    
-    annotations.forEach(ann => {
+
+    annotations.forEach((ann) => {
       const vertices = ann.boundingPoly.vertices;
-      const width = Math.max(...vertices.map(v => v.x || 0)) - Math.min(...vertices.map(v => v.x || 0));
-      const height = Math.max(...vertices.map(v => v.y || 0)) - Math.min(...vertices.map(v => v.y || 0));
-      
+      const width = Math.max(...vertices.map((v) => v.x || 0)) - Math.min(...vertices.map((v) => v.x || 0));
+      const height = Math.max(...vertices.map((v) => v.y || 0)) - Math.min(...vertices.map((v) => v.y || 0));
+
       if (width > height) {
         horizontalCount++;
       } else {
         verticalCount++;
       }
     });
-    
-    return horizontalCount > verticalCount ? 'horizontal' : 'vertical';
+
+    return horizontalCount > verticalCount ? "horizontal" : "vertical";
   }
 
   private groupIntoVerticalLines(annotations: TextAnnotation[]): TextAnnotation[][] {
@@ -183,7 +184,7 @@ export class MenuAnalysisService {
         currentLine.push(current);
       } else {
         // Sort by Y position (top to bottom)
-        currentLine.sort((a, b) => 
+        currentLine.sort((a, b) =>
           this.getCenter(a.boundingPoly).y - this.getCenter(b.boundingPoly).y
         );
         lines.push(currentLine);
@@ -192,7 +193,7 @@ export class MenuAnalysisService {
     }
 
     if (currentLine.length > 0) {
-      currentLine.sort((a, b) => 
+      currentLine.sort((a, b) =>
         this.getCenter(a.boundingPoly).y - this.getCenter(b.boundingPoly).y
       );
       lines.push(currentLine);
@@ -202,19 +203,19 @@ export class MenuAnalysisService {
   }
 
   private getAverageX(annotations: TextAnnotation[]): number {
-    return annotations.reduce((sum, ann) => 
+    return annotations.reduce((sum, ann) =>
       sum + this.getCenter(ann.boundingPoly).x, 0
     ) / annotations.length;
   }
 
   private estimateLineWidth(annotations: TextAnnotation[]): number {
-    const widths = annotations.map(ann => {
+    const widths = annotations.map((ann) => {
       const vertices = ann.boundingPoly.vertices;
-      const leftX = Math.min(...vertices.map(v => v.x || 0));
-      const rightX = Math.max(...vertices.map(v => v.x || 0));
+      const leftX = Math.min(...vertices.map((v) => v.x || 0));
+      const rightX = Math.max(...vertices.map((v) => v.x || 0));
       return rightX - leftX;
     });
-    
+
     return widths.reduce((sum, w) => sum + w, 0) / widths.length;
   }
-} 
+}

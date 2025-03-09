@@ -1,3 +1,4 @@
+/* eslint-disable max-len, require-jsdoc  */
 /**
  * Import function triggers from their respective submodules:
  *
@@ -21,7 +22,7 @@ import sharp from "sharp";
 // import {join} from "path";
 import * as serviceAccount from "./service_account.json";
 import {defineSecret} from "firebase-functions/params";
-import {ImageAnnotatorClient} from '@google-cloud/vision';
+import {ImageAnnotatorClient} from "@google-cloud/vision";
 import {MenuAnalysisService} from "./menu_analysis_service";
 
 
@@ -292,7 +293,7 @@ export const menuAnalysis = onRequest(
   async (req: Request, res: Response) => {
     try {
       const {imageBase64} = req.body;
-      
+
       if (!imageBase64) {
         res.status(400).json({error: "Image data is required"});
         return;
@@ -300,39 +301,38 @@ export const menuAnalysis = onRequest(
 
       // Create a client - this will use the application default credentials
       const client = new ImageAnnotatorClient();
-      
+
       // Prepare the image buffer from base64
       let imageBuffer;
-      if (imageBase64.startsWith('data:')) {
+      if (imageBase64.startsWith("data:")) {
         // Strip data URL if present
-        const base64Data = imageBase64.split(',')[1];
-        imageBuffer = Buffer.from(base64Data, 'base64');
+        const base64Data = imageBase64.split(",")[1];
+        imageBuffer = Buffer.from(base64Data, "base64");
       } else {
-        imageBuffer = Buffer.from(imageBase64, 'base64');
+        imageBuffer = Buffer.from(imageBase64, "base64");
       }
-      
+
       // Detect text in the image
       const [result] = await client.textDetection(imageBuffer);
       const detections = result.textAnnotations;
-      
+
       logger.info("Text detection completed");
-      
+
       // Apply line merging algorithm with proper null check
       const menuAnalysisService = new MenuAnalysisService();
-      const mergedAnnotations = detections ? 
+      const mergedAnnotations = detections ?
         menuAnalysisService.mergeTextLines(detections as any[]) : [];
-      
+
       // Create simplified extracted list
-      const extractedList = mergedAnnotations.map(annotation => {
+      const extractedList = mergedAnnotations.map((annotation) => {
         return {
-          text: annotation.description || '',
-          boundingBox: annotation.boundingPoly?.vertices.map(vertex => ({
+          text: annotation.description || "",
+          boundingBox: annotation.boundingPoly?.vertices.map((vertex) => ({
             x: vertex.x || 0,
-            y: vertex.y || 0
-          })) || []
+            y: vertex.y || 0,
+          })) || [],
         };
       });
-      logger.info("extractedList", extractedList);
       const extractedStr = JSON.stringify(extractedList);
       const openai = new OpenAI({apiKey: openaiSecret.value()});
       const prompt =
@@ -418,7 +418,6 @@ export const menuAnalysis = onRequest(
 
       const temp = response.choices[0].message.content;
       const menuItems = JSON.parse(temp || "[]");
-      logger.info("chatgpt response", menuItems);
       // res.json({menuItems: JSON.parse(temp || "[]")});
 
 
