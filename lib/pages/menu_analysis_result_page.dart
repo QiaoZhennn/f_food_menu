@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
 import 'dart:typed_data';
+import '../theme/app_theme.dart';
 
 class MenuAnalysisResultPage extends StatefulWidget {
   final dynamic image;
   final List<Map<String, dynamic>> boundingPolys;
+  final List<Map<String, dynamic>> menuItems;
   final int originalWidth;
   final int originalHeight;
   final double resizeScale;
@@ -13,6 +15,7 @@ class MenuAnalysisResultPage extends StatefulWidget {
     super.key,
     required this.image,
     required this.boundingPolys,
+    required this.menuItems,
     required this.originalWidth,
     required this.originalHeight,
     required this.resizeScale,
@@ -26,11 +29,14 @@ class _MenuAnalysisResultPageState extends State<MenuAnalysisResultPage> {
   double _displayScale = 1.0;
   Size _currentSize = Size.zero;
   int? _hoveredBoxIndex;
+  int? _hoveredMenuItemIndex;
   Offset _mousePosition = Offset.zero;
   final tooltipAnimationDuration = const Duration(milliseconds: 150);
-
-  // Define this helper for hit testing separately from painting
   final _hitDetectionKey = GlobalKey();
+
+  // Add state variables for visibility
+  bool _showOcrBoxes = false;
+  bool _showMenuItemButtons = true;
 
   @override
   void didChangeDependencies() {
@@ -54,6 +60,58 @@ class _MenuAnalysisResultPageState extends State<MenuAnalysisResultPage> {
     });
   }
 
+  // Show dialog with menu item details
+  void _showMenuItemDetails(Map<String, dynamic> menuItem) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(
+          menuItem['name'] ?? 'Menu Item',
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (menuItem['price'] != null) ...[
+                const Text(
+                  'Price:',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                Text('\$${menuItem['price']}'),
+                const SizedBox(height: 12),
+              ],
+              if (menuItem['ingredients'] != null &&
+                  (menuItem['ingredients'] as List).isNotEmpty) ...[
+                const Text(
+                  'Ingredients:',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                Text((menuItem['ingredients'] as List).join(', ')),
+                const SizedBox(height: 12),
+              ],
+              if (menuItem['drinkFlavor'] != null &&
+                  menuItem['drinkFlavor'].toString().isNotEmpty) ...[
+                const Text(
+                  'Flavor:',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                Text(menuItem['drinkFlavor']),
+              ],
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // Check if screen size changed (for web)
@@ -73,6 +131,15 @@ class _MenuAnalysisResultPageState extends State<MenuAnalysisResultPage> {
       appBar: AppBar(
         title: const Text('Menu Analysis Result'),
       ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          setState(() {
+            _showOcrBoxes = !_showOcrBoxes;
+          });
+        },
+        tooltip: _showOcrBoxes ? 'Hide OCR Boxes' : 'Show OCR Boxes',
+        child: Icon(_showOcrBoxes ? Icons.visibility_off : Icons.visibility),
+      ),
       body: Center(
         child: MouseRegion(
           onHover: (event) {
@@ -82,17 +149,17 @@ class _MenuAnalysisResultPageState extends State<MenuAnalysisResultPage> {
               final localPosition = renderBox.globalToLocal(event.position);
 
               // Perform hit test outside of paint method
-              int? hitIndex = _hitTest(localPosition);
+              _hitTest(localPosition);
 
               setState(() {
                 _mousePosition = localPosition;
-                _hoveredBoxIndex = hitIndex;
               });
             }
           },
           onExit: (event) {
             setState(() {
               _hoveredBoxIndex = null;
+              _hoveredMenuItemIndex = null;
             });
           },
           child: SizedBox(
@@ -105,29 +172,108 @@ class _MenuAnalysisResultPageState extends State<MenuAnalysisResultPage> {
                   child: _buildImage(displayWidth, displayHeight),
                 ),
 
-                // Overlay with bounding boxes (only for display, not hit testing)
+                // Overlay with bounding boxes
                 RepaintBoundary(
                   child: SizedBox.expand(
                     key: _hitDetectionKey,
                     child: CustomPaint(
                       painter: BoundingBoxPainter(
                         boundingPolys: widget.boundingPolys,
+                        menuItems: widget.menuItems,
                         resizeScale: widget.resizeScale,
                         displayScale: _displayScale,
-                        hoveredIndex: _hoveredBoxIndex,
+                        hoveredBoxIndex: _hoveredBoxIndex,
+                        hoveredMenuItemIndex: _hoveredMenuItemIndex,
+                        showOcrBoxes: _showOcrBoxes,
+                        showMenuItemBoxes:
+                            false, // Hide green boxes, we'll use buttons instead
                       ),
                     ),
                   ),
                 ),
 
-                // Tooltip for text with improved animation and positioning
+                // Add transparent buttons for menu items
+                if (_showMenuItemButtons)
+                  ...widget.menuItems.map((menuItem) {
+                    final vertices = menuItem['boundingBox'] as List?;
+                    if (vertices == null || vertices.isEmpty)
+                      return const SizedBox.shrink();
+
+                    // Calculate bounding rectangle for the button
+                    double minX = double.infinity;
+                    double minY = double.infinity;
+                    double maxX = 0;
+                    double maxY = 0;
+
+                    for (final vertex in vertices) {
+                      final x = ((vertex['x'] as num?) ?? 0) /
+                          widget.resizeScale *
+                          _displayScale;
+                      final y = ((vertex['y'] as num?) ?? 0) /
+                          widget.resizeScale *
+                          _displayScale;
+
+                      minX = minX > x ? x : minX;
+                      minY = minY > y ? y : minY;
+                      maxX = maxX < x ? x : maxX;
+                      maxY = maxY < y ? y : maxY;
+                    }
+
+                    final index = widget.menuItems.indexOf(menuItem);
+                    final isHovered = index == _hoveredMenuItemIndex;
+
+                    return Positioned(
+                      left: minX,
+                      top: minY,
+                      width: maxX - minX,
+                      height: maxY - minY,
+                      child: GestureDetector(
+                        onTap: () => _showMenuItemDetails(menuItem),
+                        child: MouseRegion(
+                          onEnter: (_) {
+                            setState(() {
+                              _hoveredMenuItemIndex = index;
+                              _hoveredBoxIndex = null;
+                            });
+                          },
+                          onExit: (_) {
+                            setState(() {
+                              _hoveredMenuItemIndex = null;
+                            });
+                          },
+                          child: Container(
+                            decoration: BoxDecoration(
+                              border: Border.all(
+                                color: AppTheme.accentColor,
+                                width: 2,
+                              ),
+                              color: isHovered
+                                  ? AppTheme.accentColor.withOpacity(0.2)
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Center(
+                              child: isHovered
+                                  ? Icon(
+                                      Icons.info_outline,
+                                      color: AppTheme.accentColor,
+                                      size: 24,
+                                    )
+                                  : null,
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+
+                // Tooltip for OCR text
                 AnimatedOpacity(
                   opacity: _hoveredBoxIndex != null ? 1.0 : 0.0,
                   duration: tooltipAnimationDuration,
                   child: _hoveredBoxIndex != null &&
                           _hoveredBoxIndex! < widget.boundingPolys.length
                       ? Positioned(
-                          // Position tooltip so it doesn't cover the text
                           top: _mousePosition.dy + 20,
                           left: _mousePosition.dx + 20,
                           child: Container(
@@ -147,8 +293,7 @@ class _MenuAnalysisResultPageState extends State<MenuAnalysisResultPage> {
                               maxWidth: MediaQuery.of(context).size.width * 0.3,
                             ),
                             child: Text(
-                              widget.boundingPolys[_hoveredBoxIndex!]
-                                      ['description'] ??
+                              widget.boundingPolys[_hoveredBoxIndex!]['text'] ??
                                   'No text',
                               style: const TextStyle(
                                 color: Colors.white,
@@ -202,12 +347,11 @@ class _MenuAnalysisResultPageState extends State<MenuAnalysisResultPage> {
     return const SizedBox.shrink();
   }
 
-  // Add this helper method for hit testing
-  int? _hitTest(Offset position) {
-    // Loop through bounding polys to find hit
-    for (int i = 0; i < widget.boundingPolys.length; i++) {
-      final poly = widget.boundingPolys[i];
-      final vertices = poly['boundingPoly']?['vertices'] as List?;
+  void _hitTest(Offset position) {
+    // First check menu items
+    for (int i = 0; i < widget.menuItems.length; i++) {
+      final item = widget.menuItems[i];
+      final vertices = item['boundingBox'] as List?;
       if (vertices == null || vertices.isEmpty) continue;
 
       final points = <Offset>[];
@@ -220,10 +364,44 @@ class _MenuAnalysisResultPageState extends State<MenuAnalysisResultPage> {
       }
 
       if (points.length >= 3 && _isPointInPolygon(position, points)) {
-        return i;
+        setState(() {
+          _hoveredMenuItemIndex = i;
+          _hoveredBoxIndex = null;
+        });
+        return;
       }
     }
-    return null;
+
+    // Only check OCR boxes if they're visible
+    if (_showOcrBoxes) {
+      for (int i = 0; i < widget.boundingPolys.length; i++) {
+        final poly = widget.boundingPolys[i];
+        final vertices = poly['boundingBox'] as List?;
+        if (vertices == null || vertices.isEmpty) continue;
+
+        final points = <Offset>[];
+        for (final vertex in vertices) {
+          final x =
+              ((vertex['x'] as num?) ?? 0) / widget.resizeScale * _displayScale;
+          final y =
+              ((vertex['y'] as num?) ?? 0) / widget.resizeScale * _displayScale;
+          points.add(Offset(x, y));
+        }
+
+        if (points.length >= 3 && _isPointInPolygon(position, points)) {
+          setState(() {
+            _hoveredBoxIndex = i;
+            _hoveredMenuItemIndex = null;
+          });
+          return;
+        }
+      }
+    }
+
+    setState(() {
+      _hoveredBoxIndex = null;
+      _hoveredMenuItemIndex = null;
+    });
   }
 
   bool _isPointInPolygon(Offset point, List<Offset> vertices) {
@@ -253,60 +431,115 @@ class _MenuAnalysisResultPageState extends State<MenuAnalysisResultPage> {
   }
 }
 
-// Update the CustomPainter to only handle painting
+// Update the CustomPainter to support visibility toggling
 class BoundingBoxPainter extends CustomPainter {
   final List<Map<String, dynamic>> boundingPolys;
+  final List<Map<String, dynamic>> menuItems;
   final double resizeScale;
   final double displayScale;
-  final int? hoveredIndex;
+  final int? hoveredBoxIndex;
+  final int? hoveredMenuItemIndex;
+  final bool showOcrBoxes;
+  final bool showMenuItemBoxes;
 
   BoundingBoxPainter({
     required this.boundingPolys,
+    required this.menuItems,
     required this.resizeScale,
     required this.displayScale,
-    this.hoveredIndex,
+    this.hoveredBoxIndex,
+    this.hoveredMenuItemIndex,
+    this.showOcrBoxes = true,
+    this.showMenuItemBoxes = true,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
     try {
-      final paint = Paint()
+      // Paint for OCR boxes (red)
+      final ocrPaint = Paint()
         ..color = Colors.red
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2.0;
 
-      final hoverPaint = Paint()
+      final ocrHoverPaint = Paint()
         ..color = Colors.red.withOpacity(0.2)
         ..style = PaintingStyle.fill;
 
-      for (int i = 0; i < boundingPolys.length; i++) {
-        final poly = boundingPolys[i];
-        final vertices = poly['boundingPoly']?['vertices'] as List?;
-        if (vertices == null || vertices.isEmpty) continue;
+      // Paint for menu items (green)
+      final menuItemPaint = Paint()
+        ..color = Colors.green
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.0;
 
-        final path = Path();
-        bool firstPoint = true;
+      final menuItemHoverPaint = Paint()
+        ..color = Colors.green.withOpacity(0.2)
+        ..style = PaintingStyle.fill;
 
-        for (final vertex in vertices) {
-          final x = ((vertex['x'] as num?) ?? 0) / resizeScale * displayScale;
-          final y = ((vertex['y'] as num?) ?? 0) / resizeScale * displayScale;
+      // Draw OCR boxes if visible
+      if (showOcrBoxes) {
+        for (int i = 0; i < boundingPolys.length; i++) {
+          final poly = boundingPolys[i];
+          final vertices = poly['boundingBox'] as List?;
+          if (vertices == null || vertices.isEmpty) continue;
 
-          if (firstPoint) {
-            path.moveTo(x, y);
-            firstPoint = false;
-          } else {
-            path.lineTo(x, y);
+          final path = Path();
+          bool firstPoint = true;
+
+          for (final vertex in vertices) {
+            final x = ((vertex['x'] as num?) ?? 0) / resizeScale * displayScale;
+            final y = ((vertex['y'] as num?) ?? 0) / resizeScale * displayScale;
+
+            if (firstPoint) {
+              path.moveTo(x, y);
+              firstPoint = false;
+            } else {
+              path.lineTo(x, y);
+            }
           }
-        }
-        path.close();
+          path.close();
 
-        // Draw hover highlight if this is the hovered box
-        if (i == hoveredIndex) {
-          canvas.drawPath(path, hoverPaint);
-        }
+          // Draw hover highlight if this is the hovered box
+          if (i == hoveredBoxIndex) {
+            canvas.drawPath(path, ocrHoverPaint);
+          }
 
-        // Draw outline for all boxes
-        canvas.drawPath(path, paint);
+          // Draw outline for all boxes
+          canvas.drawPath(path, ocrPaint);
+        }
+      }
+
+      // Draw menu item boxes if visible
+      if (showMenuItemBoxes) {
+        for (int i = 0; i < menuItems.length; i++) {
+          final item = menuItems[i];
+          final vertices = item['boundingBox'] as List?;
+          if (vertices == null || vertices.isEmpty) continue;
+
+          final path = Path();
+          bool firstPoint = true;
+
+          for (final vertex in vertices) {
+            final x = ((vertex['x'] as num?) ?? 0) / resizeScale * displayScale;
+            final y = ((vertex['y'] as num?) ?? 0) / resizeScale * displayScale;
+
+            if (firstPoint) {
+              path.moveTo(x, y);
+              firstPoint = false;
+            } else {
+              path.lineTo(x, y);
+            }
+          }
+          path.close();
+
+          // Draw hover highlight if this is the hovered menu item
+          if (i == hoveredMenuItemIndex) {
+            canvas.drawPath(path, menuItemHoverPaint);
+          }
+
+          // Draw outline for all menu items
+          canvas.drawPath(path, menuItemPaint);
+        }
       }
     } catch (e) {
       print('Error in BoundingBoxPainter: $e');
@@ -315,6 +548,9 @@ class BoundingBoxPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant BoundingBoxPainter oldDelegate) =>
-      oldDelegate.hoveredIndex != hoveredIndex ||
-      oldDelegate.displayScale != displayScale;
+      oldDelegate.hoveredBoxIndex != hoveredBoxIndex ||
+      oldDelegate.hoveredMenuItemIndex != hoveredMenuItemIndex ||
+      oldDelegate.displayScale != displayScale ||
+      oldDelegate.showOcrBoxes != showOcrBoxes ||
+      oldDelegate.showMenuItemBoxes != showMenuItemBoxes;
 }

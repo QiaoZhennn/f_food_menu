@@ -227,7 +227,8 @@ class _MenuListPageState extends State<MenuListPage> {
         MaterialPageRoute(
           builder: (context) => MenuAnalysisResultPage(
             image: imageForAnalysis,
-            boundingPolys: analysisResult,
+            boundingPolys: analysisResult['extractedList'],
+            menuItems: analysisResult['menuItems'],
             originalWidth: originalWidth,
             originalHeight: originalHeight,
             resizeScale: resizeScale,

@@ -284,6 +284,7 @@ export const searchImages = onRequest(
 
 export const menuAnalysis = onRequest(
   {
+    secrets: [openaiSecret],
     cors: true,
     memory: "1GiB",
     timeoutSeconds: 60,
@@ -321,8 +322,111 @@ export const menuAnalysis = onRequest(
       const mergedAnnotations = detections ? 
         menuAnalysisService.mergeTextLines(detections as any[]) : [];
       
-      // Return the merged text annotations
-      res.json({textAnnotations: mergedAnnotations});
+      // Create simplified extracted list
+      const extractedList = mergedAnnotations.map(annotation => {
+        return {
+          text: annotation.description || '',
+          boundingBox: annotation.boundingPoly?.vertices.map(vertex => ({
+            x: vertex.x || 0,
+            y: vertex.y || 0
+          })) || []
+        };
+      });
+      logger.info("extractedList", extractedList);
+      const extractedStr = JSON.stringify(extractedList);
+      const openai = new OpenAI({apiKey: openaiSecret.value()});
+      const prompt =
+      `
+      This is a menu, extract all items from the image. 
+      If this is a food menu, leave the drinkFlavor field blank. 
+      If there's no ingredients showing in the menu, 
+      leave the ingredients field blank. 
+      For menu in Chinese, leave the ingredients field blank. 
+      If the menu is a drink menu, leave the ingredients field blank. 
+      And fill the drinkFlavor field in Chinese using 
+      brief describition of its flavor and in what situation should 
+      we choose this drink and what food it best match with. 
+      Output in json format. I also call an OCR model to help you get the menu texts and bounding boxes of the texts. Below content in triple quotes is the OCR result.
+      '''
+      ${extractedStr}
+      '''
+      Use this OCR text and bounding boxes to help you understand and extract the menu items. 
+      Try your best to differentiate the food name and food ingredients. 
+      And use the OCR bounding boxes info as well as your own understanding to give me the bounding boxes of the 'food name' only. Output the bounding boxes in json format.
+      `;
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "user",
+            content: [
+              // eslint-disable-next-line max-len
+              {type: "text", text: prompt},
+              {
+                type: "image_url",
+                image_url: {
+                  url: `data:image/jpeg;base64,${imageBase64}`,
+                },
+              },
+            ],
+          },
+        ],
+        response_format: {
+          type: "json_schema",
+          json_schema: {
+            name: "items_schema",
+            schema: {
+              type: "object",
+              properties: {
+                items: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      // eslint-disable-next-line max-len
+                      name: {type: "string", description: "The name of the item"},
+                      boundingBox: {
+                        type: "array",
+                        items: {type: "object", properties: {
+                          x: {type: "number"},
+                          y: {type: "number"},
+                        }},
+                        description: "The bounding box of the food name",
+                      },
+                      ingredients: {
+                        type: "array",
+                        items: {type: "string"},
+                        description: "A list of ingredient of this food",
+                      },
+                      drinkFlavor: {
+                        type: "string",
+                        description: "The flavor of the drink",
+                      },
+                      // eslint-disable-next-line max-len
+                      price: {type: "number", description: "The price of the item in USD"},
+                    },
+                    required: ["name", "boundingBox"],
+                  },
+                },
+              },
+              additionalProperties: false,
+            },
+          },
+        },
+        max_tokens: 2000,
+      });
+
+      const temp = response.choices[0].message.content;
+      const menuItems = JSON.parse(temp || "[]");
+      logger.info("chatgpt response", menuItems);
+      // res.json({menuItems: JSON.parse(temp || "[]")});
+
+
+      // Return only the extractedList
+      res.json({
+        extractedList,
+        menuItems,
+      });
     } catch (error) {
       logger.error("Error detecting text:", error);
       res.status(500).json({error: "Failed to detect text", details: error});

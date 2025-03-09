@@ -6,7 +6,7 @@ class MenuAnalysisService {
   /// Analyzes a menu image and returns bounding boxes for detected elements
   ///
   /// Takes a base64-encoded image string and returns analysis results
-  Future<List<Map<String, dynamic>>> analyzeMenu(String imageBase64) async {
+  Future<Map<String, dynamic>> analyzeMenu(String imageBase64) async {
     final response = await http.post(
       Uri.parse(menuAnalysisUrl),
       headers: {'Content-Type': 'application/json'},
@@ -17,22 +17,30 @@ class MenuAnalysisService {
 
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
+      final result = {
+        'extractedList': <Map<String, dynamic>>[],
+        'menuItems': <Map<String, dynamic>>[],
+      };
 
-      // Based on the sample response, data contains text annotations
+      // Parse extracted list
       if (data is Map &&
-          data.containsKey('textAnnotations') &&
-          data['textAnnotations'] is List) {
-        return List<Map<String, dynamic>>.from(data['textAnnotations']);
+          data.containsKey('extractedList') &&
+          data['extractedList'] is List) {
+        result['extractedList'] =
+            List<Map<String, dynamic>>.from(data['extractedList']);
       }
 
-      // Alternative structure - single annotation
-      if (data is Map && data.containsKey('boundingPoly')) {
-        return [data as Map<String, dynamic>];
+      // Parse menu items from GPT
+      if (data is Map &&
+          data.containsKey('menuItems') &&
+          data['menuItems'] is Map &&
+          data['menuItems'].containsKey('items') &&
+          data['menuItems']['items'] is List) {
+        result['menuItems'] =
+            List<Map<String, dynamic>>.from(data['menuItems']['items']);
       }
 
-      // Fallback - if we reached here, the structure is different than expected
-      print('Unexpected API response format: $data');
-      return [];
+      return result;
     } else {
       throw Exception('Failed to analyze menu: ${response.statusCode}');
     }
